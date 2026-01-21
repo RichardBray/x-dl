@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>X - Mock Tweet</title>
+</head>
+<body>
+    <div data-testid="tweet">
+        <div data-testid="tweet-1">
+            <span data-testid="User-Name">@TestUser</span>
+            <div data-testid="tweetText">
+                This is a test tweet with a video
+            </div>
+            <div data-testid="videoPlayer">
+                <video controls>
+                    <source src="https://video.twimg.com/tweet_video/123456.mp4" type="video/mp4">
+                    <source src="https://video.twimg.com/tweet_video/123456_720x1280.m3u8" type="application/x-mpegURL">
+                </video>
+            </div>
+        </div>
+        
+        <div data-testid="tweet-2">
+            <span data-testid="User-Name">@GifUser</span>
+            <div data-testid="tweetText">
+                This is a tweet with a GIF
+            </div>
+            <div data-testid="videoPlayer">
+                <video autoplay loop muted playsinline>
+                    <source src="https://video.twimg.com/tweet_video/789012.gif" type="image/gif">
+                </video>
+            </div>
+        </div>
+        
+        <div data-testid="tweet-3">
+            <span data-testid="User-Name">@NoVideoUser</span>
+            <div data-testid="tweetText">
+                This is a text-only tweet
+            </div>
+        </div>
+        
+        <div data-testid="tweet-4">
+            <span data-testid="User-Name">@PrivateUser</span>
+            <div data-testid="tweetText">
+                Log in to follow this account
+            </div>
+        </div>
+        
+        <div data-testid="tweet-5">
+            <span data-testid="User-Name">@MultiQualityUser</span>
+            <div data-testid="tweetText">
+                Multiple quality options
+            </div>
+            <div data-testid="videoPlayer">
+                <video>
+                    <source src="https://video.twimg.com/ext_tw_video/111111/pu/vid/720x1280/best.mp4" type="video/mp4">
+                    <source src="https://video.twimg.com/ext_tw_video/111111/pu/vid/480x854/medium.mp4" type="video/mp4">
+                    <source src="https://video.twimg.com/ext_tw_video/111111/pu/vid/360x640/low.mp4" type="video/mp4">
+                </video>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Simulate video.twimg.com requests
+        window.mockNetworkRequests = [
+            { url: 'https://video.twimg.com/tweet_video/123456.mp4' },
+            { url: 'https://video.twimg.com/tweet_video/123456_720x1280.m3u8' },
+            { url: 'https://video.twimg.com/tweet_video/789012.gif' },
+            { url: 'https://video.twimg.com/ext_tw_video/111111/pu/vid/720x1280/best.mp4' },
+            { url: 'https://video.twimg.com/ext_tw_video/111111/pu/vid/480x854/medium.mp4' },
+            { url: 'https://video.twimg.com/ext_tw_video/111111/pu/vid/360x640/low.mp4' },
+        ];
+    </script>
+</body>
+</html>

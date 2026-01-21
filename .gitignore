@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+
+# Bun
+bun.lockb
+
+# Build output
+dist/
+
+# Playwright
+playwright-report/
+test-results/
+
+# Local profiles / auth cookies
+.x-video-profile/
+.x-dl-profile/
+
+# OS / editor
+.DS_Store
+.env
+.env.*
+*.log

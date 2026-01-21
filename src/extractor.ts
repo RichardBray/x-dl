@@ -1,0 +1,435 @@
+import type { Browser, BrowserContext, Page } from 'playwright';
+
+import { ExtractOptions, ExtractResult, VideoUrl } from './types.ts';
+import {
+  extractBitrate,
+  generateFilename,
+  getVideoFormat,
+  hasLoginWall,
+  isPrivateTweet,
+  isValidTwitterUrl,
+  parseTweetUrl,
+} from './utils.ts';
+
+type ExtractCandidate = {
+  url: string;
+  format: VideoUrl['format'];
+  width?: number;
+  height?: number;
+  score?: number;
+  audioOnly?: boolean;
+};
+
+export class VideoExtractor {
+  private timeout: number;
+  private headed: boolean;
+  private profileDir?: string;
+
+  constructor(options: ExtractOptions) {
+    this.timeout = options.timeout || 30000;
+    this.headed = options.headed || false;
+    this.profileDir = options.profileDir;
+  }
+
+  async extract(url: string): Promise<ExtractResult> {
+    console.log(`\ud83c\udfac Extracting video from: ${url}`);
+
+    if (!isValidTwitterUrl(url)) {
+      return {
+        videoUrl: null,
+        error: 'Invalid X/Twitter URL. Please provide a valid tweet URL.',
+      };
+    }
+
+    const tweetInfo = parseTweetUrl(url);
+    if (!tweetInfo) {
+      return {
+        videoUrl: null,
+        error: 'Failed to parse tweet URL.',
+      };
+    }
+
+    console.log(`\ud83d\udcdd Tweet: @${tweetInfo.author} (ID: ${tweetInfo.id})`);
+
+    const { chromium } = await import('playwright');
+
+    let browser: Browser | null = null;
+    let context: BrowserContext | null = null;
+    let page: Page | null = null;
+
+    try {
+      ({ browser, context, page } = await this.createContextAndPage(chromium));
+
+      const candidates = new Set<string>();
+      page.on('response', async (resp) => {
+        const u = resp.url();
+        if (!u.includes('video.twimg.com')) return;
+        if (!(u.includes('.mp4') || u.includes('.m3u8'))) return;
+        candidates.add(u);
+      });
+
+      console.log('\ud83c\udf10 Opening tweet in browser...');
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: this.timeout });
+
+      // Give X a moment to hydrate
+      await page.waitForTimeout(1500);
+
+      const pageHtml = await page.content();
+
+      if (isPrivateTweet(pageHtml)) {
+        return {
+          videoUrl: null,
+          error: 'This tweet is private or protected. Only public tweets can be extracted.',
+        };
+      }
+
+      const loginWall = hasLoginWall(pageHtml);
+      if (loginWall) {
+        console.log('\u26a0\ufe0f  Login wall detected; trying to extract anyway (use --login/--profile for best results)...');
+      }
+
+      // Try to trigger media loading.
+      await this.tryTriggerPlayback(page);
+
+      // Wait a bounded time for video requests.
+      await this.waitForNetworkCandidates(candidates, 8000);
+
+      const videoUrl = await this.selectBestVideoUrl({
+        page,
+        networkCandidates: [...candidates],
+      });
+
+      if (!videoUrl) {
+        return {
+          videoUrl: null,
+          error: loginWall
+            ? 'No video URL found. This tweet likely requires authentication. Run: x-dl --login --profile ~/.x-dl-profile'
+            : 'Failed to extract video URL.',
+        };
+      }
+
+      const filename = generateFilename(tweetInfo);
+      console.log(`\u2705 Video extracted: ${videoUrl.url}`);
+      console.log(`\ud83d\udccb Suggested filename: ${filename}`);
+
+      return { videoUrl };
+    } catch (error) {
+      return {
+        videoUrl: null,
+        error: error instanceof Error ? error.message : 'Unknown error occurred',
+      };
+    } finally {
+      await this.safeClose({ browser, context });
+    }
+  }
+
+  async downloadAuthenticated(videoUrl: string, outputPath: string): Promise<string> {
+    if (!this.profileDir) {
+      throw new Error('Authenticated download requested but no profileDir provided');
+    }
+
+    const { chromium } = await import('playwright');
+
+    console.log(`\ud83d\udd10 Authenticated download via Playwright: ${videoUrl}`);
+    const startTime = Date.now();
+
+    let context: BrowserContext | null = null;
+
+    try {
+      context = await chromium.launchPersistentContext(this.profileDir, {
+        headless: true,
+      });
+
+      const resp = await context.request.get(videoUrl);
+      if (!resp.ok()) {
+        throw new Error(`HTTP error! status: ${resp.status()}`);
+      }
+
+      const bytes = await resp.body();
+      await Bun.write(outputPath, bytes);
+
+      const elapsedSec = (Date.now() - startTime) / 1000;
+      console.log(`\u2705 Download completed in ${elapsedSec.toFixed(1)}s`);
+
+      return outputPath;
+    } finally {
+      if (context) {
+        await context.close().catch(() => undefined);
+      }
+    }
+  }
+
+  private async createContextAndPage(
+    chromium: typeof import('playwright').chromium
+  ): Promise<{ browser: Browser | null; context: BrowserContext; page: Page }> {
+    if (this.profileDir) {
+      const context = await chromium.launchPersistentContext(this.profileDir, {
+        headless: !this.headed,
+      });
+      const page = await context.newPage();
+      return { browser: null, context, page };
+    }
+
+    const browser = await chromium.launch({ headless: !this.headed });
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    return { browser, context, page };
+  }
+
+  private async safeClose({
+    browser,
+    context,
+  }: {
+    browser: Browser | null;
+    context: BrowserContext | null;
+  }): Promise<void> {
+    // Persistent contexts are closed via context.close(); non-persistent needs browser.close().
+    if (context) {
+      await context.close().catch(() => undefined);
+    }
+    if (browser) {
+      await browser.close().catch(() => undefined);
+    }
+  }
+
+  private async tryTriggerPlayback(page: Page): Promise<void> {
+    try {
+      await page.evaluate(() => {
+        const videos = Array.from(document.querySelectorAll('video')) as HTMLVideoElement[];
+        for (const v of videos) {
+          try {
+            v.muted = true;
+            const p = v.play?.();
+            (p as any)?.catch?.(() => undefined);
+          } catch {
+            // ignore
+          }
+        }
+      });
+    } catch {
+      // ignore
+    }
+
+    // Best-effort click targets.
+    const clickSelectors = [
+      '[data-testid="videoPlayer"]',
+      'video',
+      'div[role="button"][aria-label*="Play"]',
+      'div[role="button"][aria-label*="play"]',
+    ];
+
+    for (const selector of clickSelectors) {
+      try {
+        const locator = page.locator(selector).first();
+        if ((await locator.count()) === 0) continue;
+        await locator.click({ timeout: 750 });
+        break;
+      } catch {
+        // try next
+      }
+    }
+  }
+
+  private async waitForNetworkCandidates(candidates: Set<string>, maxWaitMs: number): Promise<void> {
+    const start = Date.now();
+    while (Date.now() - start < maxWaitMs) {
+      for (const u of candidates) {
+        if (u.includes('.mp4') || u.includes('.m3u8')) return;
+      }
+      await new Promise((r) => setTimeout(r, 250));
+    }
+  }
+
+  private async selectBestVideoUrl({
+    page,
+    networkCandidates,
+  }: {
+    page: Page;
+    networkCandidates: string[];
+  }): Promise<VideoUrl | null> {
+    console.log('\ud83d\udd0d Looking for video...');
+
+    const perfCandidates = await this.getPerformanceCandidates(page);
+    const domCandidates = await this.getDomCandidates(page);
+
+    const allUrls = [...networkCandidates, ...perfCandidates, ...domCandidates];
+    const unique = [...new Set(allUrls)];
+
+    const parsed = unique
+      .map((u) => this.toCandidate(u))
+      .filter((c): c is ExtractCandidate => Boolean(c));
+
+    const m3u8s = parsed
+      .filter((c) => c.format === 'm3u8')
+      .sort((a, b) => (b.score || 0) - (a.score || 0));
+    const bestM3U8 = m3u8s.length > 0 ? m3u8s[0] : null;
+
+    const mp4Video = parsed.filter((c) => c.format === 'mp4' && !c.audioOnly);
+    if (mp4Video.length > 0) {
+      const best = await this.pickBestMp4Candidate(mp4Video);
+      const size = await this.getContentLength(best.url);
+
+      // Some X videos only expose HLS (m3u8) + tiny init MP4 segments.
+      // If the selected MP4 is suspiciously small and we have an HLS playlist,
+      // prefer returning the playlist.
+      if (size && size < 100 * 1024 && bestM3U8) {
+        return {
+          url: bestM3U8.url,
+          format: 'm3u8',
+        };
+      }
+
+      return {
+        url: best.url,
+        format: 'mp4',
+        bitrate: extractBitrate(best.url),
+        width: best.width,
+        height: best.height,
+      };
+    }
+
+    if (bestM3U8) {
+      return {
+        url: bestM3U8.url,
+        format: 'm3u8',
+      };
+    }
+
+    const mp4AudioOnly = parsed.filter((c) => c.format === 'mp4');
+    if (mp4AudioOnly.length > 0) {
+      return {
+        url: mp4AudioOnly[0].url,
+        format: 'mp4',
+      };
+    }
+
+    return null;
+  }
+
+  private async getPerformanceCandidates(page: Page): Promise<string[]> {
+    try {
+      const entries = await page.evaluate(() =>
+        performance
+          .getEntriesByType('resource')
+          .map((r: any) => String(r.name))
+      );
+
+      if (!Array.isArray(entries)) return [];
+
+      return entries.filter(
+        (u) => typeof u === 'string' && u.includes('video.twimg.com') && (u.includes('.mp4') || u.includes('.m3u8'))
+      );
+    } catch {
+      return [];
+    }
+  }
+
+  private async getDomCandidates(page: Page): Promise<string[]> {
+    try {
+      const result = await page.evaluate(() => {
+        const urls: string[] = [];
+
+        const videos = Array.from(document.querySelectorAll('video')) as HTMLVideoElement[];
+        for (const v of videos) {
+          if (v.currentSrc) urls.push(v.currentSrc);
+          if (v.src) urls.push(v.src);
+        }
+
+        const sources = Array.from(document.querySelectorAll('video source')) as HTMLSourceElement[];
+        for (const s of sources) {
+          if (s.src) urls.push(s.src);
+        }
+
+        return urls;
+      });
+
+      if (!Array.isArray(result)) return [];
+      return result.filter(
+        (u) => typeof u === 'string' && u.includes('video.twimg.com') && (u.includes('.mp4') || u.includes('.m3u8'))
+      );
+    } catch {
+      return [];
+    }
+  }
+
+  private toCandidate(url: string): ExtractCandidate | null {
+    const format = getVideoFormat(url);
+    if (format !== 'mp4' && format !== 'm3u8') return null;
+
+    const cleanUrl = url.split('#')[0];
+
+    const audioOnly =
+      cleanUrl.includes('/aud/') ||
+      cleanUrl.includes('/mp4a/') ||
+      cleanUrl.includes('mp4a');
+
+    let width: number | undefined;
+    let height: number | undefined;
+    let score = 0;
+
+    const match = cleanUrl.match(/\/(\d+)x(\d+)\//);
+    if (match) {
+      width = parseInt(match[1], 10);
+      height = parseInt(match[2], 10);
+      score = width * height;
+    }
+
+    // Prefer MP4 over m3u8 even if no resolution parsed.
+    if (format === 'mp4' && !audioOnly) {
+      score += 1_000_000_000;
+    }
+
+    // Prefer master playlists over variant playlists when available.
+    if (format === 'm3u8' && !audioOnly && cleanUrl.includes('variant_version')) {
+      score += 2_000_000_000;
+    }
+
+    return { url: cleanUrl, format, width, height, score, audioOnly };
+  }
+
+  private async pickBestMp4Candidate(candidates: ExtractCandidate[]): Promise<ExtractCandidate> {
+    // Prefer progressive MP4 endpoints (commonly include /pu/vid/).
+    const sorted = [...candidates].sort((a, b) => (b.score || 0) - (a.score || 0));
+    const withProgressiveBoost = sorted.sort((a, b) => {
+      const ap = a.url.includes('/pu/vid/') ? 1 : 0;
+      const bp = b.url.includes('/pu/vid/') ? 1 : 0;
+      if (ap !== bp) return bp - ap;
+      return (b.score || 0) - (a.score || 0);
+    });
+
+    // If multiple candidates exist, prefer the one with the largest Content-Length.
+    // This helps avoid selecting tiny init segments from adaptive streams.
+    let best = withProgressiveBoost[0];
+    let bestSize = 0;
+
+    for (const c of withProgressiveBoost.slice(0, 6)) {
+      const size = await this.getContentLength(c.url);
+      if (!size) continue;
+      if (size < 100 * 1024) continue;
+      if (size > bestSize) {
+        best = c;
+        bestSize = size;
+      }
+    }
+
+    return best;
+  }
+
+  private async getContentLength(url: string): Promise<number | undefined> {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 5000);
+
+    try {
+      const resp = await fetch(url, { method: 'HEAD', signal: ctrl.signal });
+      if (!resp.ok) return undefined;
+      const len = resp.headers.get('content-length');
+      if (!len) return undefined;
+      const parsed = parseInt(len, 10);
+      return Number.isFinite(parsed) ? parsed : undefined;
+    } catch {
+      return undefined;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+}

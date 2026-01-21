@@ -1,0 +1,26 @@
+{
+  "name": "x-dl",
+  "version": "1.0.0",
+  "description": "Extract videos from X/Twitter tweets",
+  "main": "./src/index.ts",
+  "type": "module",
+  "bin": {
+    "x-dl": "./bin/x-dl",
+    "x-video": "./bin/x-video"
+  },
+  "scripts": {
+    "build": "bun build ./src/index.ts --outdir ./dist --target bun",
+    "dev": "bun run ./src/index.ts",
+    "postinstall": "playwright install chromium",
+    "test": "bun test",
+    "test:unit": "bun test test/unit/",
+    "test:integration": "bun test test/integration/"
+  },
+  "keywords": ["twitter", "x", "video", "extractor"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "playwright": "^1.57.0"
+  },
+  "devDependencies": {}
+}
