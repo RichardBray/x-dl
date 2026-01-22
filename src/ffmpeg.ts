@@ -77,24 +77,32 @@ export async function checkFfmpegCapabilities(): Promise<{
     results.available = true;
 
     const protocols = await execAsync('ffmpeg -hide_banner -protocols');
-    const protocolLines = protocols.stdout?.split('\n') || [];
-    const protocolsSection = protocolLines.slice(protocolLines.findIndex((l) => l.includes('--'))).join(' ');
-    results.protocols = protocolsSection.split(' ').filter(p => p && p !== '--');
+    const protocolOutput = protocols.stdout || '';
+    results.protocols = protocolOutput
+      .split('\n')
+      .map(line => line.trim())
+      .filter(p => p && !p.includes('Input:') && !p.includes('Output:') && !p.includes('file protocols:'));
 
     const demuxers = await execAsync('ffmpeg -hide_banner -demuxers');
-    const demuxerLines = demuxers.stdout?.split('\n') || [];
-    const demuxerSection = demuxerLines.slice(demuxerLines.findIndex((l) => l.includes('--'))).join(' ');
-    results.demuxers = demuxerSection.split(' ').filter(d => d && d !== '--');
+    const demuxerOutput = demuxers.stdout || '';
+    results.demuxers = demuxerOutput
+      .split('\n')
+      .map(line => line.trim())
+      .filter(d => d && !d.includes('Demuxers:'));
 
     const muxers = await execAsync('ffmpeg -hide_banner -muxers');
-    const muxerLines = muxers.stdout?.split('\n') || [];
-    const muxerSection = muxerLines.slice(muxerLines.findIndex((l) => l.includes('--'))).join(' ');
-    results.muxers = muxerSection.split(' ').filter(m => m && m !== '--');
+    const muxerOutput = muxers.stdout || '';
+    results.muxers = muxerOutput
+      .split('\n')
+      .map(line => line.trim())
+      .filter(m => m && !m.includes('Muxers:'));
 
     const bsfs = await execAsync('ffmpeg -hide_banner -bsfs');
-    const bsfLines = bsfs.stdout?.split('\n') || [];
-    const bsfSection = bsfLines.slice(bsfLines.findIndex((l) => l.includes('--'))).join(' ');
-    results.bsfs = bsfSection.split(' ').filter(b => b && b !== '--');
+    const bsfOutput = bsfs.stdout || '';
+    results.bsfs = bsfOutput
+      .split('\n')
+      .map(line => line.trim())
+      .filter(b => b && !b.includes('Bitstream filters:'));
 
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
