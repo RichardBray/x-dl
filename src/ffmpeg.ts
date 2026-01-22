@@ -5,6 +5,18 @@ export interface DownloadHlsOptions {
   outputPath: string;
 }
 
+export interface FfmpegCapabilities {
+  protocols?: string[];
+  demuxers?: string[];
+  muxers?: string[];
+  bsfs?: string[];
+}
+
+export interface FfmpegCapabilityCheckResult extends FfmpegCapabilities {
+  available: boolean;
+  error?: string;
+}
+
 export async function downloadHlsWithFfmpeg(options: DownloadHlsOptions): Promise<string> {
   const { playlistUrl, outputPath } = options;
 
@@ -25,16 +37,18 @@ export async function downloadHlsWithFfmpeg(options: DownloadHlsOptions): Promis
 
     let stderr = '';
 
-    ffmpeg.stderr.on('data', (data) => {
-      stderr += data.toString();
-    });
+    if (ffmpeg.stderr) {
+      ffmpeg.stderr.on('data', (data) => {
+        stderr += data.toString();
+      });
+    }
 
     ffmpeg.on('close', (code) => {
       if (code === 0) {
         console.log('✅ HLS download completed');
         resolve(outputPath);
       } else {
-        const error = stderr.trim() || `ffmpeg exited with code ${code}`;
+        const error = stderr.trim() || `ffmpeg exited with code ${code ?? 'null (signal)'}`;
         reject(new Error(`Failed to download HLS: ${error}`));
       }
     });
@@ -45,14 +59,7 @@ export async function downloadHlsWithFfmpeg(options: DownloadHlsOptions): Promis
   });
 }
 
-export async function checkFfmpegCapabilities(): Promise<{
-  available: boolean;
-  protocols?: string[];
-  demuxers?: string[];
-  muxers?: string[];
-  bsfs?: string[];
-  error?: string;
-}> {
+export async function checkFfmpegCapabilities(): Promise<FfmpegCapabilityCheckResult> {
   const results = {
     available: false,
     protocols: [] as string[],
@@ -90,7 +97,7 @@ export async function checkFfmpegCapabilities(): Promise<{
       .split('\n')
       .filter(line => line.trim() && !line.includes('Demuxers:') && !line.includes('D..') && !line.includes('..d'))
       .map(line => line.trim().split(/\s+/).slice(1)[0])
-      .filter(d => d);
+      .filter((d): d is string => !!d);
 
     const muxers = await execAsync('ffmpeg -hide_banner -muxers');
     const muxerOutput = muxers.stdout || '';
@@ -98,7 +105,7 @@ export async function checkFfmpegCapabilities(): Promise<{
       .split('\n')
       .filter(line => line.trim() && !line.includes('Muxers:') && !line.includes('D..') && !line.includes('..d'))
       .map(line => line.trim().split(/\s+/).slice(1)[0])
-      .filter(m => m);
+      .filter((m): m is string => !!m);
 
     const bsfs = await execAsync('ffmpeg -hide_banner -bsfs');
     const bsfOutput = bsfs.stdout || '';
@@ -116,12 +123,7 @@ export async function checkFfmpegCapabilities(): Promise<{
   return results;
 }
 
-export function hasRequiredFfmpegCapabilities(capabilities: {
-  protocols?: string[];
-  demuxers?: string[];
-  muxers?: string[];
-  bsfs?: string[];
-}): { has: boolean; missing: string[] } {
+export function hasRequiredFfmpegCapabilities(capabilities: FfmpegCapabilities): { has: boolean; missing: string[] } {
   const required = {
     protocol: 'https',
     demuxer: 'hls',
