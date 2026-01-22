@@ -11,7 +11,7 @@
   "scripts": {
     "build": "bun build ./src/index.ts --outdir ./dist --target bun",
     "dev": "bun run ./src/index.ts",
-    "postinstall": "playwright install chromium",
+    "postinstall": "bun run ./src/postinstall.ts",
     "test": "bun test",
     "test:unit": "bun test test/unit/",
     "test:integration": "bun test test/integration/"

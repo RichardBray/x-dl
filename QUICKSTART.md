@@ -12,6 +12,26 @@ cd x-dl
 bun install
 ```
 
+The postinstall script will:
+- Install Playwright Chromium
+- Check ffmpeg availability and auto-install when possible
+
+3. Test installation:
+```bash
+bun test test/unit/
+```
+
+You should see:
+```
+31 pass
+0 fail
+```
+
+2. Verify dependencies are installed:
+```bash
+bun install
+```
+
 3. Test the installation:
 ```bash
 bun test test/unit/
@@ -33,16 +53,16 @@ Before attempting to download, check if the tweet is accessible:
 bun run check https://x.com/user/status/123456
 ```
 
-**Possible results:**
+ **Possible results:**
 
-✅ **SUCCESS** - The tweet can be extracted
+ ✅ **SUCCESS** - The tweet can be extracted
 ```
 ✅ SUCCESS: This tweet can be extracted!
    Video URL: https://video.twimg.com/...
-   Format: mp4
+   Format: mp4  # or m3u8, webm, gif, etc.
 ```
 
-❌ **FAILED** - The tweet cannot be extracted
+ ❌ **FAILED** - The tweet cannot be extracted
 ```
 ❌ FAILED: This tweet cannot be extracted
    Reason: This tweet requires authentication...
@@ -72,7 +92,10 @@ bun run src/index.ts -o ~/Downloads https://x.com/user/status/123456
 
 ```bash
 bun run src/index.ts -o ~/Downloads/my-video.mp4 https://x.com/user/status/123456
+bun run src/index.ts -o ~/Downloads/my-video.webm https://x.com/user/status/123456
 ```
+
+Note: The `-o` option accepts any file extension. If you specify a path with an extension, that format will be used.
 
 ## Common Issues
 
@@ -98,6 +121,19 @@ bun run src/index.ts --profile ~/.x-dl-profile https://x.com/user/status/123456
 bunx playwright install chromium
 ```
 
+### Issue: "ffmpeg is not available"
+
+**Cause:** ffmpeg is not installed (needed for HLS/m3u8 downloads).
+
+**Solution:**
+```bash
+macOS:   brew install ffmpeg
+Linux:    sudo apt-get install ffmpeg  # or dnf/yum/pacman equivalent
+Windows:  winget install ffmpeg
+```
+
+The tool will attempt to auto-install ffmpeg during `bun install`.
+
 ### Issue: "No video found in this tweet"
 
 **Cause:** The tweet doesn't contain a video (might be images only or text).
@@ -121,16 +157,18 @@ bunx playwright install chromium
 bun run src/index.ts https://x.com/Remotion/status/2013626968386765291
 ```
 
-Expected output:
+ Expected output:
 ```
-🎬 x-dl - X/Twitter Video Extractor
-
-🔍 Checking for Playwright (Chromium)...
-✅ Playwright Chromium is ready
-🎬 Extracting video from: https://x.com/...
-📝 Tweet: @Remotion (ID: 2013626968386765291)
-...
-```
+ 🎬 x-dl - X/Twitter Video Extractor
+ 
+ 🔍 Checking for Playwright (Chromium)...
+ ✅ Playwright Chromium is ready
+ 🔍 Checking for ffmpeg...
+ ✅ ffmpeg is ready
+ 🎬 Extracting video from: https://x.com/...
+ 📝 Tweet: @Remotion (ID: 2013626968386765291)
+ ...
+ ```
 
 ### Example 2: Download to folder
 ```bash
@@ -192,7 +230,7 @@ bun run src/index.ts --help
 2. **Use --headed for debugging:** If extraction fails, try `--headed` to see what's happening
 3. **Increase timeout for slow connections:** Use `--timeout 60` for 60 seconds
 4. **Try different browsers:** If using headed mode, you can see login issues
-5. **Check filename conflicts:** The tool will use `username_tweetid.mp4` format
+5. **Check filename conflicts:** The tool will use `username_tweetid.{ext}` format (extension based on detected video format)
 
 ## Troubleshooting Commands
 

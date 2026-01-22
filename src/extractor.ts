@@ -64,7 +64,6 @@ export class VideoExtractor {
       page.on('response', async (resp) => {
         const u = resp.url();
         if (!u.includes('video.twimg.com')) return;
-        if (!(u.includes('.mp4') || u.includes('.m3u8'))) return;
         candidates.add(u);
       });
 
@@ -234,7 +233,8 @@ export class VideoExtractor {
     const start = Date.now();
     while (Date.now() - start < maxWaitMs) {
       for (const u of candidates) {
-        if (u.includes('.mp4') || u.includes('.m3u8')) return;
+        const format = getVideoFormat(u);
+        if (format === 'mp4' || format === 'm3u8' || format === 'webm' || format === 'gif') return;
       }
       await new Promise((r) => setTimeout(r, 250));
     }
@@ -264,13 +264,18 @@ export class VideoExtractor {
       .sort((a, b) => (b.score || 0) - (a.score || 0));
     const bestM3U8 = m3u8s.length > 0 ? m3u8s[0] : null;
 
-    const mp4Video = parsed.filter((c) => c.format === 'mp4' && !c.audioOnly);
-    if (mp4Video.length > 0) {
-      const best = await this.pickBestMp4Candidate(mp4Video);
+    const progressiveVideos = parsed.filter((c) => {
+      if (c.audioOnly) return false;
+      if (c.format === 'mp4' || c.format === 'webm') return true;
+      return c.format !== 'm3u8';
+    });
+
+    if (progressiveVideos.length > 0) {
+      const best = await this.pickBestProgressiveCandidate(progressiveVideos);
       const size = await this.getContentLength(best.url);
 
       // Some X videos only expose HLS (m3u8) + tiny init MP4 segments.
-      // If the selected MP4 is suspiciously small and we have an HLS playlist,
+      // If the selected file is suspiciously small and we have an HLS playlist,
       // prefer returning the playlist.
       if (size && size < 100 * 1024 && bestM3U8) {
         return {
@@ -281,7 +286,7 @@ export class VideoExtractor {
 
       return {
         url: best.url,
-        format: 'mp4',
+        format: best.format,
         bitrate: extractBitrate(best.url),
         width: best.width,
         height: best.height,
@@ -295,11 +300,11 @@ export class VideoExtractor {
       };
     }
 
-    const mp4AudioOnly = parsed.filter((c) => c.format === 'mp4');
-    if (mp4AudioOnly.length > 0) {
+    const audioOnly = parsed.filter((c) => c.format === 'mp4');
+    if (audioOnly.length > 0) {
       return {
-        url: mp4AudioOnly[0].url,
-        format: 'mp4',
+        url: audioOnly[0].url,
+        format: audioOnly[0].format,
       };
     }
 
@@ -317,7 +322,7 @@ export class VideoExtractor {
       if (!Array.isArray(entries)) return [];
 
       return entries.filter(
-        (u) => typeof u === 'string' && u.includes('video.twimg.com') && (u.includes('.mp4') || u.includes('.m3u8'))
+        (u) => typeof u === 'string' && u.includes('video.twimg.com')
       );
     } catch {
       return [];
@@ -345,7 +350,7 @@ export class VideoExtractor {
 
       if (!Array.isArray(result)) return [];
       return result.filter(
-        (u) => typeof u === 'string' && u.includes('video.twimg.com') && (u.includes('.mp4') || u.includes('.m3u8'))
+        (u) => typeof u === 'string' && u.includes('video.twimg.com')
       );
     } catch {
       return [];
@@ -354,7 +359,6 @@ export class VideoExtractor {
 
   private toCandidate(url: string): ExtractCandidate | null {
     const format = getVideoFormat(url);
-    if (format !== 'mp4' && format !== 'm3u8') return null;
 
     const cleanUrl = url.split('#')[0];
 
@@ -374,8 +378,8 @@ export class VideoExtractor {
       score = width * height;
     }
 
-    // Prefer MP4 over m3u8 even if no resolution parsed.
-    if (format === 'mp4' && !audioOnly) {
+    // Prefer MP4/webm over m3u8 even if no resolution parsed.
+    if ((format === 'mp4' || format === 'webm') && !audioOnly) {
       score += 1_000_000_000;
     }
 
@@ -387,8 +391,8 @@ export class VideoExtractor {
     return { url: cleanUrl, format, width, height, score, audioOnly };
   }
 
-  private async pickBestMp4Candidate(candidates: ExtractCandidate[]): Promise<ExtractCandidate> {
-    // Prefer progressive MP4 endpoints (commonly include /pu/vid/).
+  private async pickBestProgressiveCandidate(candidates: ExtractCandidate[]): Promise<ExtractCandidate> {
+    // Prefer progressive endpoints (commonly include /pu/vid/).
     const sorted = [...candidates].sort((a, b) => (b.score || 0) - (a.score || 0));
     const withProgressiveBoost = sorted.sort((a, b) => {
       const ap = a.url.includes('/pu/vid/') ? 1 : 0;

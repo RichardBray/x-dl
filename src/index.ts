@@ -8,6 +8,7 @@ import { VideoExtractor } from './extractor.ts';
 import { downloadVideo } from './downloader.ts';
 import { ensurePlaywrightReady } from './installer.ts';
 import { generateFilename, isValidTwitterUrl, parseTweetUrl } from './utils.ts';
+import { downloadHlsWithFfmpeg } from './ffmpeg.ts';
 
 interface CliOptions {
   url?: string;
@@ -130,19 +131,21 @@ AUTH EXAMPLES:
 `);
 }
 
-function getOutputPath(tweetUrl: string, options: CliOptions): string {
+function getOutputPath(tweetUrl: string, options: CliOptions, preferredExtension: string = 'mp4'): string {
   const tweetInfo = parseTweetUrl(tweetUrl);
   if (!tweetInfo) {
-    return 'video.mp4';
+    return `video.${preferredExtension}`;
   }
 
-  const filename = generateFilename(tweetInfo, 'mp4');
+  const filename = generateFilename(tweetInfo, preferredExtension);
 
   if (!options.output) {
     return filename;
   }
 
-  if (options.output.endsWith('.mp4')) {
+  const path = require('node:path');
+
+  if (path.extname(options.output) !== '') {
     return options.output;
   }
 
@@ -192,6 +195,12 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  const { ensureFfmpegReady } = await import('./installer.ts');
+  const ffmpegReady = await ensureFfmpegReady();
+  if (!ffmpegReady) {
+    console.warn('\u26a0\ufe0f ffmpeg is not available. HLS (m3u8) downloads will not work.');
+  }
+
   if (args.login) {
     const profileDir = expandHomeDir(args.profile || getDefaultProfileDir());
     await runLoginFlow(profileDir);
@@ -231,14 +240,42 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
+  let defaultExtension = 'mp4';
   if (result.videoUrl.format === 'm3u8') {
-    console.error('\n❌ This tweet only exposes an HLS playlist (m3u8).');
-    console.error('Use --url-only and download with a tool like yt-dlp or ffmpeg.');
-    console.error(`\nPlaylist URL:\n${result.videoUrl.url}\n`);
-    process.exit(1);
+    defaultExtension = 'mp4';
+  } else if (result.videoUrl.format !== 'unknown') {
+    defaultExtension = result.videoUrl.format;
   }
 
-  const outputPath = getOutputPath(args.url, args);
+  const outputPath = getOutputPath(args.url, args, defaultExtension);
+
+  if (result.videoUrl.format === 'm3u8') {
+    const { ensureFfmpegReady } = await import('./installer.ts');
+    const ffmpegReady = await ensureFfmpegReady();
+
+    if (!ffmpegReady) {
+      console.error('\n\u274c ffmpeg is required to download HLS (m3u8) videos.');
+      console.error('Please install ffmpeg:');
+      console.error('  macOS:   brew install ffmpeg');
+      console.error('  Linux:   sudo apt-get install ffmpeg  # or dnf/yum/pacman equivalent');
+      console.error('  Windows: winget install ffmpeg');
+      console.error(`\nPlaylist URL:\n${result.videoUrl.url}\n`);
+      process.exit(1);
+    }
+
+    try {
+      await downloadHlsWithFfmpeg({
+        playlistUrl: result.videoUrl.url,
+        outputPath,
+      });
+      console.log(`\n\u2705 Video saved to: ${outputPath}\n`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`\n\n\u274c HLS download failed: ${message}\n`);
+      process.exit(1);
+    }
+    return;
+  }
 
   try {
     await downloadVideo({
