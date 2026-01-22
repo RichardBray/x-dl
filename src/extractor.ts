@@ -266,6 +266,7 @@ export class VideoExtractor {
 
     const progressiveVideos = parsed.filter((c) => {
       if (c.audioOnly) return false;
+      if (c.format === 'm4s' || c.format === 'm4a' || c.format === 'ts') return false;
       if (c.format === 'mp4' || c.format === 'webm') return true;
       return c.format !== 'm3u8';
     });

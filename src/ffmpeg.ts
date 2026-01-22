@@ -80,29 +80,32 @@ export async function checkFfmpegCapabilities(): Promise<{
     const protocolOutput = protocols.stdout || '';
     results.protocols = protocolOutput
       .split('\n')
+      .filter(line => line.trim() && !line.includes('Input:') && !line.includes('Output:') && !line.includes('file protocols:'))
       .map(line => line.trim())
-      .filter(p => p && !p.includes('Input:') && !p.includes('Output:') && !p.includes('file protocols:'));
+      .filter(p => p !== '---');
 
     const demuxers = await execAsync('ffmpeg -hide_banner -demuxers');
     const demuxerOutput = demuxers.stdout || '';
     results.demuxers = demuxerOutput
       .split('\n')
-      .map(line => line.trim())
-      .filter(d => d && !d.includes('Demuxers:'));
+      .filter(line => line.trim() && !line.includes('Demuxers:') && !line.includes('D..') && !line.includes('..d'))
+      .map(line => line.trim().split(/\s+/).slice(1)[0])
+      .filter(d => d);
 
     const muxers = await execAsync('ffmpeg -hide_banner -muxers');
     const muxerOutput = muxers.stdout || '';
     results.muxers = muxerOutput
       .split('\n')
-      .map(line => line.trim())
-      .filter(m => m && !m.includes('Muxers:'));
+      .filter(line => line.trim() && !line.includes('Muxers:') && !line.includes('D..') && !line.includes('..d'))
+      .map(line => line.trim().split(/\s+/).slice(1)[0])
+      .filter(m => m);
 
     const bsfs = await execAsync('ffmpeg -hide_banner -bsfs');
     const bsfOutput = bsfs.stdout || '';
     results.bsfs = bsfOutput
       .split('\n')
-      .map(line => line.trim())
-      .filter(b => b && !b.includes('Bitstream filters:'));
+      .filter(line => line.trim() && !line.includes('Bitstream filters:'))
+      .map(line => line.trim());
 
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
