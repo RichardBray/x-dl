@@ -216,6 +216,18 @@ describe('Video Format Detection', () => {
   it('should parse extension from URL with hash fragment', () => {
     expect(getVideoFormat('https://video.twimg.com/video.mp4#t=10')).toBe('mp4');
   });
+
+  it('should detect HLS segment file extensions (m4s)', () => {
+    expect(getVideoFormat('https://video.twimg.com/segment.m4s')).toBe('m4s');
+  });
+
+  it('should detect HLS segment file extensions (m4a)', () => {
+    expect(getVideoFormat('https://video.twimg.com/audio.m4a')).toBe('m4a');
+  });
+
+  it('should detect HLS segment file extensions (ts)', () => {
+    expect(getVideoFormat('https://video.twimg.com/segment.ts')).toBe('ts');
+  });
 });
 
 describe('MP4 Selection', () => {
