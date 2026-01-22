@@ -12,7 +12,6 @@ playwright-report/
 test-results/
 
 # Local profiles / auth cookies
-.x-video-profile/
 .x-dl-profile/
 
 # OS / editor
