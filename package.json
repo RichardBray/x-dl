@@ -1,6 +1,6 @@
 {
   "name": "x-dl",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "description": "Extract videos from X/Twitter tweets",
   "main": "./src/index.ts",
   "type": "module",
