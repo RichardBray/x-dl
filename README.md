@@ -58,8 +58,6 @@ ffmpeg -i "<m3u8-url>" -c copy out.mp4
 ### Prerequisites
 
 - [Bun](https://bun.sh/) (>= 1.0.0)
-- Playwright (installed via `bun install`)
-- Chromium for Playwright (installed via `bun install` / `postinstall`)
 
 ### Install the tool
 
@@ -67,6 +65,24 @@ ffmpeg -i "<m3u8-url>" -c copy out.mp4
 cd x-dl
 bun install
 ```
+
+### Install dependencies
+
+After installing the tool, you can install Playwright Chromium:
+
+```bash
+# Install Playwright Chromium only
+x-dl install
+
+# Install Chromium + ffmpeg + Linux system dependencies (may require sudo on Linux)
+x-dl install --with-deps
+```
+
+The `install` command:
+- Checks if Playwright Chromium is already installed
+- Installs Chromium if needed (no sudo required)
+- With `--with-deps`, also installs ffmpeg and Linux system dependencies
+- Works both when running via Bun and when using a compiled single-file binary
 
 ### Create a symlink for easy access (optional)
 
@@ -89,6 +105,22 @@ Extract and download a video from a tweet:
 ```bash
 x-dl https://x.com/Remotion/status/2013626968386765291
 ```
+
+### Install Dependencies
+
+Install Playwright Chromium:
+
+```bash
+x-dl install
+```
+
+Install Chromium plus ffmpeg and Linux system dependencies:
+
+```bash
+x-dl install --with-deps
+```
+
+**Note:** `--with-deps` may require sudo on Linux to install system packages.
 
 ### Options
 

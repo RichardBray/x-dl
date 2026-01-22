@@ -6,7 +6,7 @@ import fs from 'node:fs';
 
 import { VideoExtractor } from './extractor.ts';
 import { downloadVideo } from './downloader.ts';
-import { ensurePlaywrightReady } from './installer.ts';
+import { ensurePlaywrightReady, runInstall, InstallOptions } from './installer.ts';
 import { generateFilename, isValidTwitterUrl, parseTweetUrl } from './utils.ts';
 
 interface CliOptions {
@@ -18,6 +18,11 @@ interface CliOptions {
   headed?: boolean;
   profile?: string;
   login?: boolean;
+}
+
+interface InstallCliOptions {
+  withDeps?: boolean;
+  help?: boolean;
 }
 
 const DEFAULT_PROFILE_DIR = path.join(os.homedir(), '.x-dl-profile');
@@ -109,6 +114,7 @@ x-dl - Download videos from X/Twitter tweets
 
 USAGE:
   x-dl [OPTIONS] <URL>
+  x-dl install [OPTIONS]
 
 OPTIONS:
   --url, -u <url>           Tweet URL to extract from
@@ -121,13 +127,38 @@ OPTIONS:
   --login                   Open X in a persistent profile and wait for you to log in
   --help, -h                Show this help message
 
+INSTALL:
+  x-dl install               Install Playwright Chromium only
+  x-dl install --with-deps   Install Chromium + ffmpeg + Linux deps (may require sudo on Linux)
+
 AUTH EXAMPLES:
   # Create/reuse a persistent login session
   x-dl --login --profile ~/.x-dl-profile
 
   # Extract using the authenticated profile
   x-dl --profile ~/.x-dl-profile https://x.com/user/status/123
-`);
+  `);
+}
+
+function showInstallHelp(): void {
+  console.log(`
+x-dl install - Install Playwright Chromium and optional dependencies
+
+USAGE:
+  x-dl install [OPTIONS]
+
+OPTIONS:
+  --with-deps               Install ffmpeg and Linux system dependencies (may require sudo)
+  --help, -h                Show this help message
+
+EXAMPLES:
+  x-dl install              Install Playwright Chromium only
+  x-dl install --with-deps  Install Chromium + ffmpeg + Linux deps
+
+NOTE:
+  --with-deps may require sudo on Linux to install system packages.
+  On macOS, Homebrew (brew) is used for ffmpeg installation.
+  `);
 }
 
 function getOutputPath(tweetUrl: string, options: CliOptions): string {
@@ -181,10 +212,51 @@ async function runLoginFlow(profileDir: string): Promise<void> {
   }
 }
 
-async function main(): Promise<void> {
+async function handleInstallMode(args: string[]): Promise<void> {
+  const options: InstallCliOptions = {};
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+
+    switch (arg) {
+      case '--with-deps':
+        options.withDeps = true;
+        break;
+      case '--help':
+      case '-h':
+        showInstallHelp();
+        process.exit(0);
+        break;
+      default:
+        console.error(`\u274c Unknown flag for install: ${arg}`);
+        console.error('\nRun: x-dl install --help for more information\n');
+        process.exit(1);
+    }
+  }
+
   console.log('\ud83c\udfac x-dl - X/Twitter Video Extractor\n');
 
-  const args = parseArgs(process.argv.slice(2));
+  try {
+    await runInstall(options);
+    process.exit(0);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`\n\u274c Install failed: ${message}\n`);
+    process.exit(1);
+  }
+}
+
+async function main(): Promise<void> {
+  const argv = process.argv.slice(2);
+
+  if (argv[0] === 'install') {
+    await handleInstallMode(argv.slice(1));
+    return;
+  }
+
+  console.log('\ud83c\udfac x-dl - X/Twitter Video Extractor\n');
+
+  const args = parseArgs(argv);
 
   const installed = await ensurePlaywrightReady();
   if (!installed) {
