@@ -60,13 +60,12 @@ export async function downloadHlsWithFfmpeg(options: DownloadHlsOptions): Promis
 }
 
 export async function checkFfmpegCapabilities(): Promise<FfmpegCapabilityCheckResult> {
-  const results = {
+  const results: FfmpegCapabilityCheckResult = {
     available: false,
-    protocols: [] as string[],
-    demuxers: [] as string[],
-    muxers: [] as string[],
-    bsfs: [] as string[],
-    error: undefined as string | undefined,
+    protocols: [],
+    demuxers: [],
+    muxers: [],
+    bsfs: [],
   };
 
   try {
