@@ -14,7 +14,11 @@
     "postinstall": "playwright install chromium",
     "test": "bun test",
     "test:unit": "bun test test/unit/",
-    "test:integration": "bun test test/integration/"
+    "test:integration": "bun test test/integration/",
+    "release:patch": "bun version patch && git push && git push --tags",
+    "release:minor": "bun version minor && git push && git push --tags",
+    "release:major": "bun version major && git push && git push --tags",
+    "version:tags": "git tag -l --sort=-version:refname"
   },
   "keywords": ["twitter", "x", "video", "extractor"],
   "author": "",
