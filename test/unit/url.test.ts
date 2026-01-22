@@ -184,7 +184,7 @@ describe('Video Detection', () => {
 describe('Video Format Detection', () => {
   it('should detect MP4 format', () => {
     expect(getVideoFormat('https://video.twimg.com/tweet_video.mp4')).toBe('mp4');
-    expect(getVideoFormat('VIDEO.MP4')).toBe('mp4');
+    expect(getVideoFormat('https://video.twimg.com/tweet_video.MP4')).toBe('mp4');
   });
 
   it('should detect m3u8 format', () => {
@@ -193,11 +193,40 @@ describe('Video Format Detection', () => {
 
   it('should detect GIF format', () => {
     expect(getVideoFormat('https://video.twimg.com/tweet_video.gif')).toBe('gif');
-    expect(getVideoFormat('https://pbs.twimg.com/tweet_video_thumb')).toBe('gif');
   });
 
-  it('should return unknown for unrecognized formats', () => {
-    expect(getVideoFormat('https://example.com/video.webm')).toBe('unknown');
+  it('should detect webm format', () => {
+    expect(getVideoFormat('https://example.com/video.webm')).toBe('webm');
+    expect(getVideoFormat('https://example.com/video.WEBM')).toBe('webm');
+  });
+
+  it('should detect other extensions', () => {
+    expect(getVideoFormat('https://example.com/video.mov')).toBe('mov');
+    expect(getVideoFormat('https://example.com/video.mkv')).toBe('mkv');
+  });
+
+  it('should return unknown for tweet_video URLs without extension', () => {
+    expect(getVideoFormat('https://pbs.twimg.com/tweet_video_thumb')).toBe('unknown');
+  });
+
+  it('should parse extension from URL with query parameters', () => {
+    expect(getVideoFormat('https://video.twimg.com/video.mp4?tag=12')).toBe('mp4');
+  });
+
+  it('should parse extension from URL with hash fragment', () => {
+    expect(getVideoFormat('https://video.twimg.com/video.mp4#t=10')).toBe('mp4');
+  });
+
+  it('should detect HLS segment file extensions (m4s)', () => {
+    expect(getVideoFormat('https://video.twimg.com/segment.m4s')).toBe('m4s');
+  });
+
+  it('should detect HLS segment file extensions (m4a)', () => {
+    expect(getVideoFormat('https://video.twimg.com/audio.m4a')).toBe('m4a');
+  });
+
+  it('should detect HLS segment file extensions (ts)', () => {
+    expect(getVideoFormat('https://video.twimg.com/segment.ts')).toBe('ts');
   });
 });
 

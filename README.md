@@ -5,12 +5,15 @@ Extract videos from X (formerly Twitter) tweets.
 ## Features
 
 - ✅ Extract videos from public X/Twitter tweets
-- ✅ Automatic MP4 format selection (highest quality)
-- ✅ Download videos directly or just get the URL
+- ✅ Supports multiple formats (mp4, webm, gif, etc.)
+- ✅ HLS (m3u8) playlist download via ffmpeg
+- ✅ Automatic format selection (highest quality)
+- ✅ Download videos directly or just get of URL
 - ✅ Private tweet detection with helpful errors
 - ✅ Authenticated extraction via persistent browser profile
 - ✅ Progress reporting during downloads
 - ✅ Headed mode for debugging
+- ✅ ffmpeg auto-install when possible
 
 ## Authentication Note
 
@@ -20,21 +23,40 @@ This tool supports an authenticated mode using a persistent Playwright browser p
 
 ## How It Works
 
-`x-dl` launches Chromium via Playwright, opens the tweet, and looks for media requests to `video.twimg.com`.
+`x-dl` launches Chromium via Playwright, opens tweet, and looks for media requests to `video.twimg.com`.
 
-- **Primary signal:** network responses that include `.mp4` or `.m3u8` URLs
+- **Primary signal:** network responses to `video.twimg.com`
 - **Fallbacks:** Performance API (`performance.getEntriesByType('resource')`) and DOM inspection (`<video>` / `<source>`)
 - **Selection:**
   - filters out audio-only tracks (URLs containing `/aud/` or `mp4a`)
-  - prefers MP4 when a real progressive file exists
+  - prefers progressive files (mp4/webm) when available
   - otherwise returns an HLS playlist (`.m3u8`) when that's all X exposes
+- **Download:**
+  - mp4/webm/gif files: direct download
+  - HLS (m3u8) playlists: downloads via ffmpeg to produce mp4
 - **Auth:** with `--profile`, Playwright reuses cookies/session from a persistent profile directory
+- **ffmpeg:** checked at runtime and auto-installed when possible
 
 Examples:
 
 ```bash
-# Print the best URL (MP4 if available, otherwise m3u8)
+# Print the best video URL (any supported format)
 x-dl --url-only https://x.com/WesRoth/status/2013693268190437410
+```
+
+```bash
+# Log in once (interactive browser), saving cookies to a profile dir
+x-dl --login --profile ~/.x-dl-profile
+
+# Then extract using the logged-in session
+x-dl --profile ~/.x-dl-profile --url-only https://x.com/WesRoth/status/2013693268190437410
+```
+
+When downloading an HLS (m3u8) playlist, the tool automatically uses ffmpeg:
+
+```bash
+# This will use ffmpeg to download and convert m3u8 to mp4
+x-dl https://x.com/user/status/123456
 ```
 
 ```bash
@@ -60,6 +82,7 @@ ffmpeg -i "<m3u8-url>" -c copy out.mp4
 - [Bun](https://bun.sh/) (>= 1.0.0)
 - Playwright (installed via `bun install`)
 - Chromium for Playwright (installed via `bun install` / `postinstall`)
+- ffmpeg (for HLS/m3u8 downloads, auto-installed when possible)
 
 ### Install the tool
 
@@ -96,13 +119,15 @@ x-dl https://x.com/Remotion/status/2013626968386765291
 |--------|-------------|
 | `--url, -u <url>` | Tweet URL to extract from |
 | `--output, -o <path>` | Output directory or file path (default: current directory) |
-| `--url-only` | Only print the video URL, don't download |
+| `--url-only` | Only print video URL, don't download |
 | `--quality <best|worst>` | Video quality preference (default: best) |
 | `--timeout <seconds>` | Page load timeout in seconds (default: 30) |
 | `--headed` | Show browser window for debugging |
 | `--profile [dir]` | Use a persistent browser profile for authenticated extraction (default: `~/.x-dl-profile`) |
 | `--login` | Open X in a persistent profile and wait for you to log in |
 | `--help, -h` | Show help message |
+
+**Note:** The `-o` option accepts any file extension. If you specify a path with an extension (e.g., `video.mp4`, `video.webm`), that format will be used. Otherwise, the format is auto-detected from the extracted video.
 
 ### Examples
 
@@ -145,11 +170,14 @@ x-dl --timeout 60 https://x.com/user/status/123456
 When extracting a video, the tool will:
 
 1. Check that Playwright + Chromium are available
-2. Validate the tweet URL
-3. Open the tweet in a headless browser
-4. Extract the video URL (preferring MP4 format)
-5. Download the video with progress reporting
-6. Save it with a filename like `username_tweetid.mp4`
+2. Check ffmpeg availability (for HLS support)
+3. Validate tweet URL
+4. Open tweet in a headless browser
+5. Extract video URL (preferring progressive formats like mp4/webm)
+6. Download video:
+   - For mp4/webm/gif files: direct download with progress reporting
+   - For HLS (m3u8) playlists: use ffmpeg to download and convert to mp4
+7. Save it with a filename like `username_tweetid.{ext}` (extension based on format)
 
 ### Example Output
 
@@ -238,22 +266,23 @@ Use `--headed` mode to see the browser for debugging.
 
 ### Project Structure
 
-```
-x-dl/
-├── src/
-│   ├── index.ts       # CLI entry point
-│   ├── extractor.ts   # Video extraction logic
-│   ├── downloader.ts  # Download logic (Bun fetch)
-│   ├── installer.ts   # Dependency management
-│   ├── types.ts       # TypeScript interfaces
-│   └── utils.ts       # Helper functions
-├── test/
-│   ├── unit/          # Unit tests
-│   ├── integration/   # Integration tests
-│   └── test-utils.ts  # Test utilities
-└── bin/
-    └── x-dl         # Executable
-```
+ ```
+ ├── src/
+ │   ├── index.ts       # CLI entry point
+ │   ├── extractor.ts   # Video extraction logic
+ │   ├── downloader.ts  # Download logic (Bun fetch)
+ │   ├── ffmpeg.ts      # HLS download via ffmpeg
+ │   ├── installer.ts   # Dependency management (Playwright + ffmpeg)
+ │   ├── types.ts       # TypeScript interfaces
+ │   ├── utils.ts       # Helper functions
+ │   └── postinstall.ts # Post-install setup script
+ ├── test/
+ │   ├── unit/          # Unit tests
+ │   ├── integration/   # Integration tests
+ │   └── test-utils.ts  # Test utilities
+ └── bin/
+     └── x-dl         # Executable
+ ```
 
 ### Building
 
@@ -270,6 +299,27 @@ If Chromium is missing, install it with:
 ```bash
 bunx playwright install chromium
 ```
+
+### "ffmpeg is not available" or "ffmpeg is missing required capabilities"
+
+If you see this error when trying to download an HLS (m3u8) video, ffmpeg is either not installed or lacks the required features.
+
+**Auto-install:**
+The tool will attempt to auto-install ffmpeg when you run `bun install` or when needed.
+
+**Manual install:**
+```bash
+macOS:   brew install ffmpeg
+Linux:    sudo apt-get install ffmpeg  # or dnf/yum/pacman equivalent
+Windows:  winget install ffmpeg
+```
+
+After installation, run:
+```bash
+bun run src/index.ts <url>
+```
+
+The tool will verify ffmpeg capabilities automatically.
 
 ### Authenticated extraction doesn't work
 

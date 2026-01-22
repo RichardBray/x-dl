@@ -51,11 +51,17 @@ export function sanitizeFilename(filename: string): string {
     .substring(0, 255);
 }
 
-export function getVideoFormat(url: string): VideoUrl['format'] {
-  const lowerUrl = url.toLowerCase();
-  if (lowerUrl.includes('.mp4')) return 'mp4';
-  if (lowerUrl.includes('.m3u8')) return 'm3u8';
-  if (lowerUrl.includes('.gif') || lowerUrl.includes('twimg.com/tweet_video')) return 'gif';
+export function getVideoFormat(url: string): string {
+  const urlObj = new URL(url);
+  const pathname = urlObj.pathname.toLowerCase();
+
+  const extMatch = pathname.match(/\.([a-z0-9]+)$/i);
+  if (extMatch) {
+    return extMatch[1].toLowerCase();
+  }
+
+  if (pathname.includes('twimg.com/tweet_video')) return 'gif';
+
   return 'unknown';
 }
 

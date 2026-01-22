@@ -8,6 +8,7 @@ import { VideoExtractor } from './extractor.ts';
 import { downloadVideo } from './downloader.ts';
 import { ensurePlaywrightReady } from './installer.ts';
 import { generateFilename, isValidTwitterUrl, parseTweetUrl } from './utils.ts';
+import { downloadHlsWithFfmpeg } from './ffmpeg.ts';
 
 interface CliOptions {
   url?: string;
@@ -21,15 +22,6 @@ interface CliOptions {
 }
 
 const DEFAULT_PROFILE_DIR = path.join(os.homedir(), '.x-dl-profile');
-const LEGACY_PROFILE_DIR = path.join(os.homedir(), '.x-video-profile');
-
-function getDefaultProfileDir(): string {
-  // Preserve existing users' sessions if they already logged in with x-video.
-  if (fs.existsSync(LEGACY_PROFILE_DIR) && !fs.existsSync(DEFAULT_PROFILE_DIR)) {
-    return LEGACY_PROFILE_DIR;
-  }
-  return DEFAULT_PROFILE_DIR;
-}
 
 function expandHomeDir(p: string): string {
   if (p.startsWith('~/')) {
@@ -77,7 +69,7 @@ function parseArgs(args: string[]): CliOptions {
         break;
       case '--profile': {
         if (!nextArg || nextArg.startsWith('-')) {
-          options.profile = getDefaultProfileDir();
+          options.profile = DEFAULT_PROFILE_DIR;
         } else {
           options.profile = nextArg;
           i++;
@@ -130,19 +122,21 @@ AUTH EXAMPLES:
 `);
 }
 
-function getOutputPath(tweetUrl: string, options: CliOptions): string {
+function getOutputPath(tweetUrl: string, options: CliOptions, preferredExtension: string = 'mp4'): string {
   const tweetInfo = parseTweetUrl(tweetUrl);
   if (!tweetInfo) {
-    return 'video.mp4';
+    return `video.${preferredExtension}`;
   }
 
-  const filename = generateFilename(tweetInfo, 'mp4');
+  const filename = generateFilename(tweetInfo, preferredExtension);
 
   if (!options.output) {
     return filename;
   }
 
-  if (options.output.endsWith('.mp4')) {
+  const path = require('node:path');
+
+  if (path.extname(options.output) !== '') {
     return options.output;
   }
 
@@ -192,8 +186,14 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  const { ensureFfmpegReady } = await import('./installer.ts');
+  const ffmpegReady = await ensureFfmpegReady();
+  if (!ffmpegReady) {
+    console.warn('\u26a0\ufe0f ffmpeg is not available. HLS (m3u8) downloads will not work.');
+  }
+
   if (args.login) {
-    const profileDir = expandHomeDir(args.profile || getDefaultProfileDir());
+    const profileDir = expandHomeDir(args.profile || DEFAULT_PROFILE_DIR);
     await runLoginFlow(profileDir);
     process.exit(0);
   }
@@ -231,14 +231,42 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
+  let defaultExtension = 'mp4';
   if (result.videoUrl.format === 'm3u8') {
-    console.error('\n❌ This tweet only exposes an HLS playlist (m3u8).');
-    console.error('Use --url-only and download with a tool like yt-dlp or ffmpeg.');
-    console.error(`\nPlaylist URL:\n${result.videoUrl.url}\n`);
-    process.exit(1);
+    defaultExtension = 'mp4';
+  } else if (result.videoUrl.format !== 'unknown') {
+    defaultExtension = result.videoUrl.format;
   }
 
-  const outputPath = getOutputPath(args.url, args);
+  const outputPath = getOutputPath(args.url, args, defaultExtension);
+
+  if (result.videoUrl.format === 'm3u8') {
+    const { ensureFfmpegReady } = await import('./installer.ts');
+    const ffmpegReady = await ensureFfmpegReady();
+
+    if (!ffmpegReady) {
+      console.error('\n\u274c ffmpeg is required to download HLS (m3u8) videos.');
+      console.error('Please install ffmpeg:');
+      console.error('  macOS:   brew install ffmpeg');
+      console.error('  Linux:   sudo apt-get install ffmpeg  # or dnf/yum/pacman equivalent');
+      console.error('  Windows: winget install ffmpeg');
+      console.error(`\nPlaylist URL:\n${result.videoUrl.url}\n`);
+      process.exit(1);
+    }
+
+    try {
+      await downloadHlsWithFfmpeg({
+        playlistUrl: result.videoUrl.url,
+        outputPath,
+      });
+      console.log(`\n\u2705 Video saved to: ${outputPath}\n`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`\n\n\u274c HLS download failed: ${message}\n`);
+      process.exit(1);
+    }
+    return;
+  }
 
   try {
     await downloadVideo({

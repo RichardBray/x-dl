@@ -1,6 +1,6 @@
 export interface VideoUrl {
   url: string;
-  format: 'mp4' | 'm3u8' | 'gif' | 'unknown';
+  format: string;
   bitrate?: number;
   width?: number;
   height?: number;
