@@ -22,15 +22,6 @@ interface CliOptions {
 }
 
 const DEFAULT_PROFILE_DIR = path.join(os.homedir(), '.x-dl-profile');
-const LEGACY_PROFILE_DIR = path.join(os.homedir(), '.x-video-profile');
-
-function getDefaultProfileDir(): string {
-  // Preserve existing users' sessions if they already logged in with x-video.
-  if (fs.existsSync(LEGACY_PROFILE_DIR) && !fs.existsSync(DEFAULT_PROFILE_DIR)) {
-    return LEGACY_PROFILE_DIR;
-  }
-  return DEFAULT_PROFILE_DIR;
-}
 
 function expandHomeDir(p: string): string {
   if (p.startsWith('~/')) {
@@ -78,7 +69,7 @@ function parseArgs(args: string[]): CliOptions {
         break;
       case '--profile': {
         if (!nextArg || nextArg.startsWith('-')) {
-          options.profile = getDefaultProfileDir();
+          options.profile = DEFAULT_PROFILE_DIR;
         } else {
           options.profile = nextArg;
           i++;
@@ -202,7 +193,7 @@ async function main(): Promise<void> {
   }
 
   if (args.login) {
-    const profileDir = expandHomeDir(args.profile || getDefaultProfileDir());
+    const profileDir = expandHomeDir(args.profile || DEFAULT_PROFILE_DIR);
     await runLoginFlow(profileDir);
     process.exit(0);
   }

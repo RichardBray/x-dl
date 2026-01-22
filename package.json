@@ -5,8 +5,7 @@
   "main": "./src/index.ts",
   "type": "module",
   "bin": {
-    "x-dl": "./bin/x-dl",
-    "x-video": "./bin/x-video"
+    "x-dl": "./bin/x-dl"
   },
   "scripts": {
     "build": "bun build ./src/index.ts --outdir ./dist --target bun",
