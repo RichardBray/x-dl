@@ -19,6 +19,9 @@ interface CliOptions {
   headed?: boolean;
   profile?: string;
   login?: boolean;
+  verifyAuth?: boolean;
+  browserChannel?: 'chrome' | 'chromium' | 'msedge';
+  browserExecutablePath?: string;
 }
 
 const DEFAULT_PROFILE_DIR = path.join(os.homedir(), '.x-dl-profile');
@@ -79,6 +82,21 @@ function parseArgs(args: string[]): CliOptions {
       case '--login':
         options.login = true;
         break;
+      case '--verify-auth':
+        options.verifyAuth = true;
+        break;
+      case '--browser-channel':
+        if (nextArg === 'chrome' || nextArg === 'chromium' || nextArg === 'msedge') {
+          options.browserChannel = nextArg;
+          i++;
+        }
+        break;
+      case '--browser-executable-path':
+        if (nextArg) {
+          options.browserExecutablePath = nextArg;
+          i++;
+        }
+        break;
       case '--help':
       case '-h':
         showHelp();
@@ -95,30 +113,49 @@ function parseArgs(args: string[]): CliOptions {
   return options;
 }
 
+function getCommandName(): string {
+  const scriptPath = process.argv[1];
+  const basename = path.basename(scriptPath);
+  return basename;
+}
+
 function showHelp(): void {
+  const commandName = getCommandName();
   console.log(`
-x-dl - Download videos from X/Twitter tweets
+${commandName} - Download videos from X/Twitter tweets
 
 USAGE:
-  x-dl [OPTIONS] <URL>
+  ${commandName} [OPTIONS] <URL>
 
 OPTIONS:
-  --url, -u <url>           Tweet URL to extract from
-  --output, -o <path>       Output directory or file path (default: current directory)
-  --url-only                Only print the video URL, don't download
-  --quality <best|worst>    Video quality preference (default: best)
-  --timeout <seconds>       Page load timeout in seconds (default: 30)
-  --headed                  Show browser window for debugging
-  --profile [dir]           Persistent profile dir for authenticated extraction (default: ~/.x-dl-profile)
-  --login                   Open X in a persistent profile and wait for you to log in
-  --help, -h                Show this help message
+  --url, -u <url>                   Tweet URL to extract from
+  --output, -o <path>               Output directory or file path (default: current directory)
+  --url-only                        Only print the video URL, don't download
+  --quality <best|worst>            Video quality preference (default: best)
+  --timeout <seconds>               Page load timeout in seconds (default: 30)
+  --headed                          Show browser window for debugging
+  --profile [dir]                   Persistent profile dir for authenticated extraction (default: ~/.x-dl-profile)
+  --login                           Open X in a persistent profile and wait for you to log in
+  --browser-channel <channel>       Browser channel: chrome, chromium, or msedge (default: chromium)
+  --browser-executable-path <path>  Path to browser executable (optional, overrides channel)
+  --help, -h                        Show this help message
 
 AUTH EXAMPLES:
   # Create/reuse a persistent login session
-  x-dl --login --profile ~/.x-dl-profile
+  ${commandName} --login --profile ~/.x-dl-profile
 
   # Extract using the authenticated profile
-  x-dl --profile ~/.x-dl-profile https://x.com/user/status/123
+  ${commandName} --profile ~/.x-dl-profile https://x.com/user/status/123
+
+BROWSER EXAMPLES:
+  # Use Chrome instead of Chromium
+  ${commandName} --browser-channel chrome https://x.com/user/status/123
+
+  # Use Microsoft Edge
+  ${commandName} --browser-channel msedge https://x.com/user/status/123
+
+  # Use custom browser executable
+  ${commandName} --browser-executable-path /path/to/browser https://x.com/user/status/123
 `);
 }
 
@@ -154,17 +191,28 @@ async function waitForEnter(): Promise<void> {
   });
 }
 
-async function runLoginFlow(profileDir: string): Promise<void> {
+async function runLoginFlow(
+  profileDir: string,
+  browserOptions?: { browserChannel?: string; browserExecutablePath?: string }
+): Promise<void> {
   const { chromium } = await import('playwright');
 
-  console.log(`\n\ud83d\udd10 Login mode`);
-  console.log(`\ud83d\udcc1 Profile: ${profileDir}`);
-  console.log('\ud83c\udf10 Opening https://x.com/home ...');
+  console.log(`\n🔐 Login mode`);
+  console.log(`📁 Profile: ${profileDir}`);
+  console.log('🌐 Opening https://x.com/home ...');
   console.log('\nLog in to X in the opened browser, then press Enter here to close.\n');
 
-  const context = await chromium.launchPersistentContext(profileDir, {
+  const launchOptions: any = {
     headless: false,
-  });
+  };
+
+  if (browserOptions?.browserExecutablePath) {
+    launchOptions.executablePath = browserOptions.browserExecutablePath;
+  } else if (browserOptions?.browserChannel) {
+    launchOptions.channel = browserOptions.browserChannel;
+  }
+
+  const context = await chromium.launchPersistentContext(profileDir, launchOptions);
 
   try {
     const page = await context.newPage();
@@ -176,37 +224,41 @@ async function runLoginFlow(profileDir: string): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  console.log('\ud83c\udfac x-dl - X/Twitter Video Extractor\n');
+  console.log('🎬 x-dl - X/Twitter Video Extractor\n');
 
   const args = parseArgs(process.argv.slice(2));
 
   const installed = await ensurePlaywrightReady();
   if (!installed) {
-    console.error('\n\u274c Playwright Chromium is required. Try: bunx playwright install chromium\n');
+    console.error('\n❌ Playwright Chromium is required. Try: bunx playwright install chromium\n');
     process.exit(1);
   }
 
   const { ensureFfmpegReady } = await import('./installer.ts');
   const ffmpegReady = await ensureFfmpegReady();
   if (!ffmpegReady) {
-    console.warn('\u26a0\ufe0f ffmpeg is not available. HLS (m3u8) downloads will not work.');
+    console.warn('⚠️ ffmpeg is not available. HLS (m3u8) downloads will not work.');
   }
 
   if (args.login) {
     const profileDir = expandHomeDir(args.profile || DEFAULT_PROFILE_DIR);
-    await runLoginFlow(profileDir);
+    await runLoginFlow(profileDir, {
+      browserChannel: args.browserChannel,
+      browserExecutablePath: args.browserExecutablePath,
+    });
     process.exit(0);
   }
 
   if (!args.url) {
-    console.error('\u274c Error: No URL provided');
-    console.error('\nUsage: x-dl <url> [options]');
-    console.error('Run: x-dl --help for more information\n');
+    const commandName = getCommandName();
+    console.error('❌ Error: No URL provided');
+    console.error(`\nUsage: ${commandName} <url> [options]`);
+    console.error(`Run: ${commandName} --help for more information\n`);
     process.exit(1);
   }
 
   if (!isValidTwitterUrl(args.url)) {
-    console.error('\u274c Error: Invalid X/Twitter URL');
+    console.error('❌ Error: Invalid X/Twitter URL');
     console.error('Please provide a valid tweet URL like: https://x.com/user/status/123456\n');
     process.exit(1);
   }
@@ -217,12 +269,14 @@ async function main(): Promise<void> {
     timeout: args.timeout,
     headed: args.headed,
     profileDir,
+    browserChannel: args.browserChannel,
+    browserExecutablePath: args.browserExecutablePath,
   });
 
   const result = await extractor.extract(args.url);
 
   if (result.error || !result.videoUrl) {
-    console.error(`\n\u274c ${result.error || 'Failed to extract video'}\n`);
+    console.error(`\n❌ ${result.error || 'Failed to extract video'}\n`);
     process.exit(1);
   }
 
@@ -245,7 +299,7 @@ async function main(): Promise<void> {
     const ffmpegReady = await ensureFfmpegReady();
 
     if (!ffmpegReady) {
-      console.error('\n\u274c ffmpeg is required to download HLS (m3u8) videos.');
+      console.error('\n❌ ffmpeg is required to download HLS (m3u8) videos.');
       console.error('Please install ffmpeg:');
       console.error('  macOS:   brew install ffmpeg');
       console.error('  Linux:   sudo apt-get install ffmpeg  # or dnf/yum/pacman equivalent');
@@ -259,10 +313,10 @@ async function main(): Promise<void> {
         playlistUrl: result.videoUrl.url,
         outputPath,
       });
-      console.log(`\n\u2705 Video saved to: ${outputPath}\n`);
+      console.log(`\n✅ Video saved to: ${outputPath}\n`);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      console.error(`\n\n\u274c HLS download failed: ${message}\n`);
+      console.error(`\n\n❌ HLS download failed: ${message}\n`);
       process.exit(1);
     }
     return;
@@ -274,24 +328,24 @@ async function main(): Promise<void> {
       outputPath,
       onProgress: (progress, downloaded, total) => {
         process.stdout.write(
-          `\r\u23f3 Progress: ${progress.toFixed(1)}% (${formatBytes(downloaded)}/${formatBytes(total)})`
+          `\r⏳ Progress: ${progress.toFixed(1)}% (${formatBytes(downloaded)}/${formatBytes(total)})`
         );
       },
     });
 
-    console.log(`\n\n\u2705 Video saved to: ${outputPath}\n`);
+    console.log(`\n\n✅ Video saved to: ${outputPath}\n`);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     const isAuthFailure = message.includes('status: 401') || message.includes('status: 403');
 
     if (isAuthFailure && profileDir) {
-      console.log('\n\n\ud83d\udd10 Direct download was blocked; retrying with authenticated Playwright request...');
+      console.log('\n\n🔐 Direct download was blocked; retrying with authenticated Playwright request...');
       await extractor.downloadAuthenticated(result.videoUrl.url, outputPath);
-      console.log(`\n\n\u2705 Video saved to: ${outputPath}\n`);
+      console.log(`\n\n✅ Video saved to: ${outputPath}\n`);
       process.exit(0);
     }
 
-    console.error(`\n\n\u274c Download failed: ${message}\n`);
+    console.error(`\n\n❌ Download failed: ${message}\n`);
     process.exit(1);
   }
 }
@@ -305,6 +359,6 @@ function formatBytes(bytes: number): string {
 }
 
 main().catch((error) => {
-  console.error('\n\u274c Unexpected error:', error);
+  console.error('\n❌ Unexpected error:', error);
   process.exit(1);
 });

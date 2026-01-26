@@ -1,6 +1,8 @@
 import type { Browser, BrowserContext, Page } from 'playwright';
+import fs from 'node:fs';
+import path from 'node:path';
 
-import { ExtractOptions, ExtractResult, VideoUrl } from './types.ts';
+import { ExtractOptions, ExtractResult, VideoUrl, ErrorClassification } from './types.ts';
 import {
   extractBitrate,
   generateFilename,
@@ -24,11 +26,17 @@ export class VideoExtractor {
   private timeout: number;
   private headed: boolean;
   private profileDir?: string;
+  private debugArtifactsDir?: string;
+  private browserChannel?: 'chrome' | 'chromium' | 'msedge';
+  private browserExecutablePath?: string;
 
   constructor(options: ExtractOptions) {
     this.timeout = options.timeout || 30000;
     this.headed = options.headed || false;
     this.profileDir = options.profileDir;
+    this.debugArtifactsDir = options.debugArtifactsDir;
+    this.browserChannel = options.browserChannel;
+    this.browserExecutablePath = options.browserExecutablePath;
   }
 
   async extract(url: string): Promise<ExtractResult> {
@@ -38,6 +46,7 @@ export class VideoExtractor {
       return {
         videoUrl: null,
         error: 'Invalid X/Twitter URL. Please provide a valid tweet URL.',
+        errorClassification: ErrorClassification.INVALID_URL,
       };
     }
 
@@ -46,6 +55,7 @@ export class VideoExtractor {
       return {
         videoUrl: null,
         error: 'Failed to parse tweet URL.',
+        errorClassification: ErrorClassification.PARSE_ERROR,
       };
     }
 
@@ -76,9 +86,12 @@ export class VideoExtractor {
       const pageHtml = await page.content();
 
       if (isPrivateTweet(pageHtml)) {
+        const debugInfo = await this.saveDebugArtifacts(page, pageHtml, 'protected-account');
         return {
           videoUrl: null,
           error: 'This tweet is private or protected. Only public tweets can be extracted.',
+          errorClassification: ErrorClassification.PROTECTED_ACCOUNT,
+          debugInfo,
         };
       }
 
@@ -99,11 +112,14 @@ export class VideoExtractor {
       });
 
       if (!videoUrl) {
+        const debugInfo = await this.saveDebugArtifacts(page, pageHtml, loginWall ? 'login-wall' : 'no-video-found');
         return {
           videoUrl: null,
           error: loginWall
             ? 'No video URL found. This tweet likely requires authentication. Run: x-dl --login --profile ~/.x-dl-profile'
             : 'Failed to extract video URL.',
+          errorClassification: loginWall ? ErrorClassification.LOGIN_WALL : ErrorClassification.NO_VIDEO_FOUND,
+          debugInfo,
         };
       }
 
@@ -113,9 +129,13 @@ export class VideoExtractor {
 
       return { videoUrl };
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      const debugInfo = page ? await this.saveDebugArtifacts(page, null, 'extraction-error') : undefined;
       return {
         videoUrl: null,
-        error: error instanceof Error ? error.message : 'Unknown error occurred',
+        error: errorMessage,
+        errorClassification: ErrorClassification.EXTRACTION_ERROR,
+        debugInfo,
       };
     } finally {
       await this.safeClose({ browser, context });
@@ -135,9 +155,17 @@ export class VideoExtractor {
     let context: BrowserContext | null = null;
 
     try {
-      context = await chromium.launchPersistentContext(this.profileDir, {
+      const launchOptions: any = {
         headless: true,
-      });
+      };
+
+      if (this.browserExecutablePath) {
+        launchOptions.executablePath = this.browserExecutablePath;
+      } else if (this.browserChannel) {
+        launchOptions.channel = this.browserChannel;
+      }
+
+      context = await chromium.launchPersistentContext(this.profileDir, launchOptions);
 
       const resp = await context.request.get(videoUrl);
       if (!resp.ok()) {
@@ -162,14 +190,30 @@ export class VideoExtractor {
     chromium: typeof import('playwright').chromium
   ): Promise<{ browser: Browser | null; context: BrowserContext; page: Page }> {
     if (this.profileDir) {
-      const context = await chromium.launchPersistentContext(this.profileDir, {
+      const launchOptions: any = {
         headless: !this.headed,
-      });
+      };
+
+      if (this.browserExecutablePath) {
+        launchOptions.executablePath = this.browserExecutablePath;
+      } else if (this.browserChannel) {
+        launchOptions.channel = this.browserChannel;
+      }
+
+      const context = await chromium.launchPersistentContext(this.profileDir, launchOptions);
       const page = await context.newPage();
       return { browser: null, context, page };
     }
 
-    const browser = await chromium.launch({ headless: !this.headed });
+    const launchOptions: any = { headless: !this.headed };
+
+    if (this.browserExecutablePath) {
+      launchOptions.executablePath = this.browserExecutablePath;
+    } else if (this.browserChannel) {
+      launchOptions.channel = this.browserChannel;
+    }
+
+    const browser = await chromium.launch(launchOptions);
     const context = await browser.newContext();
     const page = await context.newPage();
     return { browser, context, page };
@@ -188,6 +232,50 @@ export class VideoExtractor {
     }
     if (browser) {
       await browser.close().catch(() => undefined);
+    }
+  }
+
+  private async saveDebugArtifacts(
+    page: Page,
+    pageHtml: string | null,
+    errorType: string
+  ): Promise<{ htmlPath?: string; screenshotPath?: string; tracePath?: string } | undefined> {
+    if (!this.debugArtifactsDir) {
+      return undefined;
+    }
+
+    try {
+      // Create debug directory if it doesn't exist
+      fs.mkdirSync(this.debugArtifactsDir, { recursive: true });
+
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+      const prefix = `${errorType}_${timestamp}`;
+      const debugInfo: { htmlPath?: string; screenshotPath?: string; tracePath?: string } = {};
+
+      // Save HTML content
+      if (pageHtml) {
+        const htmlPath = path.join(this.debugArtifactsDir, `${prefix}.html`);
+        fs.writeFileSync(htmlPath, pageHtml, 'utf-8');
+        debugInfo.htmlPath = htmlPath;
+        console.log(`\ud83d\udcc3 HTML saved to: ${htmlPath}`);
+      }
+
+      // Save screenshot
+      try {
+        const screenshotPath = path.join(this.debugArtifactsDir, `${prefix}.png`);
+        await page.screenshot({ path: screenshotPath, fullPage: true });
+        debugInfo.screenshotPath = screenshotPath;
+        console.log(`\ud83d\udcf7 Screenshot saved to: ${screenshotPath}`);
+      } catch {
+        // Screenshot failed, continue without it
+      }
+
+      return debugInfo;
+    } catch (error) {
+      console.warn(
+        `\u26a0\ufe0f  Failed to save debug artifacts: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+      return undefined;
     }
   }
 
@@ -435,6 +523,92 @@ export class VideoExtractor {
       return undefined;
     } finally {
       clearTimeout(timer);
+    }
+  }
+
+  async verifyAuth(): Promise<{
+    hasAuthToken: boolean;
+    canAccessHome: boolean;
+    authCookies: string[];
+    message: string;
+  }> {
+    if (!this.profileDir) {
+      return {
+        hasAuthToken: false,
+        canAccessHome: false,
+        authCookies: [],
+        message: 'No profile directory specified',
+      };
+    }
+
+    const { chromium } = await import('playwright');
+
+    let context: BrowserContext | null = null;
+    let page: Page | null = null;
+
+    try {
+      context = await chromium.launchPersistentContext(this.profileDir, {
+        headless: true,
+      });
+
+      // Check for auth cookies
+      const cookies = await context.cookies();
+      const authTokenCookie = cookies.find(c => c.name === 'auth_token');
+      const authCookieNames = cookies
+        .filter(c => ['auth_token', 'auth_multi_select', 'personalization_id', 'ct0'].includes(c.name))
+        .map(c => c.name);
+
+      const hasAuthToken = !!authTokenCookie;
+
+      // Try to load X.com/home
+      page = await context.newPage();
+      let canAccessHome = false;
+      let message = '';
+
+      try {
+        await page.goto('https://x.com/home', {
+          waitUntil: 'domcontentloaded',
+          timeout: this.timeout,
+        });
+
+        const pageHtml = await page.content();
+        const loginWallDetected = hasLoginWall(pageHtml);
+
+        if (loginWallDetected) {
+          canAccessHome = false;
+          message = 'Login wall detected at X.com/home - authentication may be invalid or expired';
+        } else if (pageHtml.includes('Home') && hasAuthToken) {
+          canAccessHome = true;
+          message = 'Authentication is valid and X.com/home is accessible';
+        } else if (!loginWallDetected && pageHtml.includes('Home')) {
+          canAccessHome = true;
+          message = 'X.com/home loaded successfully (page loaded but no auth token present)';
+        } else if (!loginWallDetected) {
+          canAccessHome = true;
+          message = 'X.com/home loaded (no login wall detected, but auth token not present)';
+        } else {
+          canAccessHome = false;
+          message = 'Unable to verify access status';
+        }
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        canAccessHome = false;
+        message = `Failed to access X.com/home: ${errorMsg}`;
+      }
+
+      return {
+        hasAuthToken,
+        canAccessHome,
+        authCookies: authCookieNames,
+        message,
+      };
+    } finally {
+      if (page) {
+        await page.close().catch(() => undefined);
+      }
+      if (context) {
+        await context.close().catch(() => undefined);
+      }
     }
   }
 }

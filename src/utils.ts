@@ -174,3 +174,20 @@ export function formatTime(seconds: number): string {
   const secs = Math.floor(seconds % 60);
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
+
+export function hasCookie(cookies: any[], name: string): boolean {
+  return cookies.some(cookie => cookie.name === name);
+}
+
+export function findAuthCookies(cookies: any[]): string[] {
+  const authCookieNames = [
+    'auth_token',
+    'auth_multi_select',
+    'personalization_id',
+    'ct0',
+  ];
+
+  return cookies
+    .filter(cookie => authCookieNames.includes(cookie.name))
+    .map(cookie => cookie.name);
+}
