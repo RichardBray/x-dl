@@ -19,7 +19,7 @@ function which(cmd: string): string | null {
 
   const { spawnSync } = require('node:child_process');
   try {
-    const result = spawnSync('command', ['-v', cmd], { stdio: 'pipe' });
+    const result = spawnSync('which', [cmd], { stdio: 'pipe' });
     return result.status === 0 ? result.stdout.toString().trim() : null;
   } catch {
     return null;
