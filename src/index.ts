@@ -249,6 +249,20 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
+  if (args.verifyAuth) {
+    const profileDir = expandHomeDir(args.profile || DEFAULT_PROFILE_DIR);
+    const extractor = new VideoExtractor({ profileDir });
+    const result = await extractor.verifyAuth();
+    
+    console.log('\nAuth Status:');
+    console.log(`- Auth token present: ${result.hasAuthToken ? 'Yes' : 'No'}`);
+    console.log(`- Can access X.com/home: ${result.canAccessHome ? 'Yes' : 'No'}`);
+    console.log(`- Auth cookies found: ${result.authCookies.join(', ') || 'None'}`);
+    console.log(`\n${result.message}\n`);
+    
+    process.exit(result.canAccessHome && result.hasAuthToken ? 0 : 1);
+  }
+
   if (!args.url) {
     const commandName = getCommandName();
     console.error('❌ Error: No URL provided');
