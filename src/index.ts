@@ -251,7 +251,11 @@ async function main(): Promise<void> {
 
   if (args.verifyAuth) {
     const profileDir = expandHomeDir(args.profile || DEFAULT_PROFILE_DIR);
-    const extractor = new VideoExtractor({ profileDir });
+    const extractor = new VideoExtractor({ 
+      profileDir,
+      browserChannel: args.browserChannel,
+      browserExecutablePath: args.browserExecutablePath,
+    });
     const result = await extractor.verifyAuth();
     
     console.log('\nAuth Status:');

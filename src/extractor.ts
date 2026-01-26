@@ -547,9 +547,17 @@ export class VideoExtractor {
     let page: Page | null = null;
 
     try {
-      context = await chromium.launchPersistentContext(this.profileDir, {
+      const launchOptions = {
         headless: true,
-      });
+      };
+
+      if (this.browserExecutablePath) {
+        launchOptions.executablePath = this.browserExecutablePath;
+      } else if (this.browserChannel) {
+        launchOptions.channel = this.browserChannel;
+      }
+
+      context = await chromium.launchPersistentContext(this.profileDir, launchOptions);
 
       // Check for auth cookies
       const cookies = await context.cookies();
