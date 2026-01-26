@@ -155,7 +155,7 @@ export class VideoExtractor {
     let context: BrowserContext | null = null;
 
     try {
-      const launchOptions: any = {
+      const launchOptions = {
         headless: true,
       };
 
