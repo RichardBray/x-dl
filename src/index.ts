@@ -165,6 +165,36 @@ BROWSER EXAMPLES:
 
   # Use custom browser executable
   ${commandName} --browser-executable-path /path/to/browser https://x.com/user/status/123
+  `);
+}
+
+function showInstallHelp(): void {
+  const commandName = getCommandName();
+  console.log(`
+${commandName} install - Install dependencies
+
+USAGE:
+  ${commandName} install [OPTIONS]
+
+OPTIONS:
+  --with-deps              Install Chromium + ffmpeg + Linux deps (may require sudo on Linux)
+  --help, -h               Show this help message
+
+INSTALL DETAILS:
+  Playwright Chromium is required for video extraction from X/Twitter.
+  
+  With --with-deps:
+    - Installs Playwright Chromium
+    - Installs ffmpeg (required for HLS/m3u8 video downloads)
+    - Installs Linux system dependencies (Linux only)
+    - On Linux, sudo may be required for system dependencies
+
+  Without --with-deps:
+    - Installs only Playwright Chromium
+
+EXAMPLES:
+  ${commandName} install
+  ${commandName} install --with-deps
 `);
 }
 
