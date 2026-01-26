@@ -274,7 +274,6 @@ async function main(): Promise<void> {
     return;
   }
 
-  console.log('\ud83c\udfac x-dl - X/Twitter Video Extractor\n');
   console.log('🎬 x-dl - X/Twitter Video Extractor\n');
 
   const args = parseArgs(argv);
