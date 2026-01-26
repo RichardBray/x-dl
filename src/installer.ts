@@ -150,23 +150,26 @@ async function installLinuxPlaywrightSystemDeps(): Promise<void> {
   }
 
   console.log('\ud83d\udd0d Installing Playwright system dependencies (Linux)...');
-  try {
-    await run([aptGetPath, 'update'], { sudo: true });
-    await run([aptGetPath, 'install', '-y',
-      'ca-certificates',
-      'fonts-liberation',
-      'libasound2t64',
-      'libatk-bridge2.0-0',
-      'libatk1.0-0',
-      'libatspi2.0-0',
-      'libgtk-3-0',
-      'libnss3',
-    ], { sudo: true });
-    console.log('\u2705 System dependencies installed successfully');
-  } catch (error) {
+  const { code: updateCode } = await run([aptGetPath, 'update'], { sudo: true });
+  if (updateCode !== 0) {
+    console.log('\u26a0\ufe0f Failed to update package lists (continuing anyway)');
+  }
+  const { code: installCode } = await run([aptGetPath, 'install', '-y',
+    'ca-certificates',
+    'fonts-liberation',
+    'libasound2t64',
+    'libatk-bridge2.0-0',
+    'libatk1.0-0',
+    'libatspi2.0-0',
+    'libgtk-3-0',
+    'libnss3',
+  ], { sudo: true });
+  if (installCode !== 0) {
     console.log('\u26a0\ufe0f Failed to install some system dependencies (continuing anyway)');
     console.log('   You may need to install them manually:');
     console.log('   See: https://playwright.dev/docs/browsers#install-system-dependencies');
+  } else {
+    console.log('\u2705 System dependencies installed successfully');
   }
 }
 
