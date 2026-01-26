@@ -14,6 +14,7 @@ Extract videos from X (formerly Twitter) tweets.
 - ✅ Progress reporting during downloads
 - ✅ Headed mode for debugging
 - ✅ ffmpeg auto-install when possible
+- ✅ Automatic authenticated fallback for blocked downloads
 
 ## Authentication Note
 
@@ -34,6 +35,7 @@ This tool supports an authenticated mode using a persistent Playwright browser p
 - **Download:**
   - mp4/webm/gif files: direct download
   - HLS (m3u8) playlists: downloads via ffmpeg to produce mp4
+  - If direct download fails with 401/403 auth errors and `--profile` is used, automatically retries using authenticated Playwright requests
 - **Auth:** with `--profile`, Playwright reuses cookies/session from a persistent profile directory
 - **ffmpeg:** checked at runtime and auto-installed when possible
 

@@ -5,10 +5,12 @@
   "main": "./src/index.ts",
   "type": "module",
   "bin": {
-    "x-dl": "./bin/x-dl"
+    "x-dl": "./bin/x-dl",
+    "xld": "./bin/xld"
   },
   "scripts": {
-    "build": "bun build ./src/index.ts --outdir ./dist --target bun",
+    "build": "bun build ./src/index.ts --outdir ./dist --target bun --packages=external",
+    "build:standalone": "bun build ./src/index.ts --compile --target=bun-darwin-arm64 --outfile dist/xld-macos-apple-silicon && bun build ./src/index.ts --compile --target=bun-darwin-x64 --outfile dist/xld-macos-intel && bun build ./src/index.ts --compile --target=bun-linux-x64 --outfile dist/xld-linux-x64",
     "dev": "bun run ./src/index.ts",
     "postinstall": "bun run ./src/postinstall.ts",
     "test": "bun test",
