@@ -6,7 +6,7 @@ import fs from 'node:fs';
 
 import { VideoExtractor } from './extractor.ts';
 import { downloadVideo } from './downloader.ts';
-import { ensurePlaywrightReady } from './installer.ts';
+import { ensurePlaywrightReady, runInstall, InstallOptions } from './installer.ts';
 import { generateFilename, isValidTwitterUrl, parseTweetUrl } from './utils.ts';
 import { downloadHlsWithFfmpeg } from './ffmpeg.ts';
 
@@ -22,6 +22,11 @@ interface CliOptions {
   verifyAuth?: boolean;
   browserChannel?: 'chrome' | 'chromium' | 'msedge';
   browserExecutablePath?: string;
+}
+
+interface InstallCliOptions {
+  withDeps?: boolean;
+  help?: boolean;
 }
 
 const DEFAULT_PROFILE_DIR = path.join(os.homedir(), '.x-dl-profile');
@@ -140,6 +145,10 @@ OPTIONS:
   --browser-executable-path <path>  Path to browser executable (optional, overrides channel)
   --help, -h                        Show this help message
 
+INSTALL:
+  x-dl install               Install Playwright Chromium only
+  x-dl install --with-deps   Install Chromium + ffmpeg + Linux deps (may require sudo on Linux)
+
 AUTH EXAMPLES:
   # Create/reuse a persistent login session
   ${commandName} --login --profile ~/.x-dl-profile
@@ -156,6 +165,36 @@ BROWSER EXAMPLES:
 
   # Use custom browser executable
   ${commandName} --browser-executable-path /path/to/browser https://x.com/user/status/123
+  `);
+}
+
+function showInstallHelp(): void {
+  const commandName = getCommandName();
+  console.log(`
+${commandName} install - Install dependencies
+
+USAGE:
+  ${commandName} install [OPTIONS]
+
+OPTIONS:
+  --with-deps              Install Chromium + ffmpeg + Linux deps (may require sudo on Linux)
+  --help, -h               Show this help message
+
+INSTALL DETAILS:
+  Playwright Chromium is required for video extraction from X/Twitter.
+  
+  With --with-deps:
+    - Installs Playwright Chromium
+    - Installs ffmpeg (required for HLS/m3u8 video downloads)
+    - Installs Linux system dependencies (Linux only)
+    - On Linux, sudo may be required for system dependencies
+
+  Without --with-deps:
+    - Installs only Playwright Chromium
+
+EXAMPLES:
+  ${commandName} install
+  ${commandName} install --with-deps
 `);
 }
 
@@ -223,10 +262,51 @@ async function runLoginFlow(
   }
 }
 
+async function handleInstallMode(args: string[]): Promise<void> {
+  const options: InstallCliOptions = {};
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+
+    switch (arg) {
+      case '--with-deps':
+        options.withDeps = true;
+        break;
+      case '--help':
+      case '-h':
+        showInstallHelp();
+        process.exit(0);
+        break;
+      default:
+        console.error(`\u274c Unknown flag for install: ${arg}`);
+        console.error('\nRun: x-dl install --help for more information\n');
+        process.exit(1);
+    }
+  }
+
+  console.log('\ud83c\udfac x-dl - X/Twitter Video Extractor\n');
+
+  try {
+    await runInstall(options);
+    process.exit(0);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`\n\u274c Install failed: ${message}\n`);
+    process.exit(1);
+  }
+}
+
 async function main(): Promise<void> {
+  const argv = process.argv.slice(2);
+
+  if (argv[0] === 'install') {
+    await handleInstallMode(argv.slice(1));
+    return;
+  }
+
   console.log('🎬 x-dl - X/Twitter Video Extractor\n');
 
-  const args = parseArgs(process.argv.slice(2));
+  const args = parseArgs(argv);
 
   const installed = await ensurePlaywrightReady();
   if (!installed) {
