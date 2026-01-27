@@ -41,6 +41,16 @@ function expandHomeDir(p: string): string {
   return p;
 }
 
+function getDefaultDownloadsDir(): string {
+  const platform = os.platform();
+  
+  if (platform === 'darwin' || platform === 'linux') {
+    return path.join(os.homedir(), 'Downloads');
+  }
+  
+  return process.cwd();
+}
+
 function parseArgs(args: string[]): CliOptions {
   const options: CliOptions = {};
 
@@ -134,7 +144,7 @@ USAGE:
 
 OPTIONS:
   --url, -u <url>                   Tweet URL to extract from
-  --output, -o <path>               Output directory or file path (default: current directory)
+  --output, -o <path>               Output directory or file path (default: ~/Downloads)
   --url-only                        Only print the video URL, don't download
   --quality <best|worst>            Video quality preference (default: best)
   --timeout <seconds>               Page load timeout in seconds (default: 30)
@@ -207,7 +217,8 @@ function getOutputPath(tweetUrl: string, options: CliOptions, preferredExtension
   const filename = generateFilename(tweetInfo, preferredExtension);
 
   if (!options.output) {
-    return filename;
+    const defaultDir = getDefaultDownloadsDir();
+    return path.join(defaultDir, filename);
   }
 
   const path = require('node:path');

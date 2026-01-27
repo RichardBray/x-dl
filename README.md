@@ -156,7 +156,7 @@ x-dl install --with-deps
 | Option | Description |
 |--------|-------------|
 | `--url, -u <url>` | Tweet URL to extract from |
-| `--output, -o <path>` | Output directory or file path (default: current directory) |
+| `--output, -o <path>` | Output directory or file path (default: ~/Downloads) |
 | `--url-only` | Only print video URL, don't download |
 | `--quality <best|worst>` | Video quality preference (default: best) |
 | `--timeout <seconds>` | Page load timeout in seconds (default: 30) |
@@ -169,7 +169,7 @@ x-dl install --with-deps
 
 ### Examples
 
-**Download to current directory:**
+**Download to default location (~/Downloads):**
 ```bash
 x-dl https://x.com/Remotion/status/2013626968386765291
 ```
@@ -235,13 +235,13 @@ When extracting a video, the tool will:
 ✅ Video extracted: https://video.twimg.com/ext_tw_video/...
 📋 Suggested filename: Remotion_2013626968386765291.mp4
 📥 Downloading video from: https://video.twimg.com/...
-📁 Output path: Remotion_2013626968386765291.mp4
+📁 Output path: ~/Downloads/Remotion_2013626968386765291.mp4
 📊 Total size: 15.23 MB
 ⏳ Progress: 100.0% (15.23 MB/15.23 MB)
 ✅ Download completed in 0:45
 📦 Final size: 15.23 MB
 
-✅ Video saved to: Remotion_2013626968386765291.mp4
+✅ Video saved to: ~/Downloads/Remotion_2013626968386765291.mp4
 ```
 
 ## Limitations
