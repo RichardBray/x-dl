@@ -211,7 +211,8 @@ EXAMPLES:
 function getOutputPath(tweetUrl: string, options: CliOptions, preferredExtension: string = 'mp4'): string {
   const tweetInfo = parseTweetUrl(tweetUrl);
   if (!tweetInfo) {
-    return `video.${preferredExtension}`;
+    const defaultDir = getDefaultDownloadsDir();
+    return path.join(defaultDir, `video.${preferredExtension}`);
   }
 
   const filename = generateFilename(tweetInfo, preferredExtension);
