@@ -347,9 +347,8 @@ The tool will attempt to auto-install ffmpeg when you run `bun install` or when 
 
 **Manual install:**
 ```bash
-macOS:   brew install ffmpeg
-Linux:    sudo apt-get install ffmpeg  # or dnf/yum/pacman equivalent
-Windows:  winget install ffmpeg
+macOS: brew install ffmpeg
+Linux:  sudo apt-get install ffmpeg  # or dnf/yum/pacman equivalent
 ```
 
 After installation, run:
