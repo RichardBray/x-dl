@@ -222,8 +222,6 @@ function getOutputPath(tweetUrl: string, options: CliOptions, preferredExtension
     return path.join(defaultDir, filename);
   }
 
-  const path = require('node:path');
-
   if (path.extname(options.output) !== '') {
     return options.output;
   }
