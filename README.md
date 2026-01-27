@@ -1,5 +1,7 @@
 # x-dl
 
+> ⚠️ **Warning:** This project was vibe coded and is a work in progress. It's not perfect—please use at your own risk.
+
 Extract videos from X (formerly Twitter) tweets.
 
 ## Features
