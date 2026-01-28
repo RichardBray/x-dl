@@ -10,7 +10,10 @@
   },
   "scripts": {
     "build": "bun build ./src/index.ts --outdir ./dist --target bun --packages=external",
-    "build:standalone": "bun build ./src/index.ts --compile --target=bun-darwin-arm64 --outfile dist/xld-macos-apple-silicon && bun build ./src/index.ts --compile --target=bun-darwin-x64 --outfile dist/xld-macos-intel && bun build ./src/index.ts --compile --target=bun-linux-x64 --outfile dist/xld-linux-x64",
+    "build:standalone": "bun build ./src/index.ts --compile --target=bun-darwin-arm64 --external electron --external chromium-bidi --outfile dist/xld-macos-apple-silicon && bun build ./src/index.ts --compile --target=bun-darwin-x64 --external electron --external chromium-bidi --outfile dist/xld-macos-intel && bun build ./src/index.ts --compile --target=bun-linux-x64 --external electron --external chromium-bidi --outfile dist/xld-linux-x64",
+    "build:macos-arm64": "bun build ./src/index.ts --compile --target=bun-darwin-arm64 --external electron --external chromium-bidi --outfile dist/xld-macos-apple-silicon",
+    "build:macos-intel": "bun build ./src/index.ts --compile --target=bun-darwin-x64 --external electron --external chromium-bidi --outfile dist/xld-macos-intel",
+    "build:linux-x64": "bun build ./src/index.ts --compile --target=bun-linux-x64 --external electron --external chromium-bidi --outfile dist/xld-linux-x64",
     "dev": "bun run ./src/index.ts",
     "postinstall": "bun run ./src/postinstall.ts",
     "test": "bun test",
