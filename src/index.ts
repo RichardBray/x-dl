@@ -324,12 +324,6 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const { ensureFfmpegReady } = await import('./installer.ts');
-  const ffmpegReady = await ensureFfmpegReady();
-  if (!ffmpegReady) {
-    console.warn('⚠️ ffmpeg is not available. HLS (m3u8) downloads will not work.');
-  }
-
   if (args.login) {
     const profileDir = expandHomeDir(args.profile || DEFAULT_PROFILE_DIR);
     await runLoginFlow(profileDir, {
