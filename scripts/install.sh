@@ -158,7 +158,7 @@ update_path() {
 prompt_chromium() {
     echo ""
     echo -e "${YELLOW}Install Playwright Chromium now (~300MB)?${NC} [y/N]: "
-    read -r response
+    read -r response < /dev/tty
 
     if [[ "$response" =~ ^[Yy]$ ]]; then
         log_info "Installing Playwright Chromium..."
