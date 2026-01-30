@@ -15,6 +15,10 @@ log_error() {
     exit "$2"
 }
 
+log_warn() {
+    echo -e "${YELLOW}⚠${NC} $1"
+}
+
 detect_platform() {
     OS=$(uname -s)
     ARCH=$(uname -m)
@@ -165,7 +169,7 @@ prompt_chromium() {
         if ~/.local/bin/x-dl install; then
             log_info "Playwright Chromium installed successfully"
         else
-            log_error "Failed to install Playwright Chromium. You can install it later by running: x-dl install" 0
+            log_warn "Failed to install Playwright Chromium. You can install it later by running: x-dl install"
         fi
     else
         echo ""
