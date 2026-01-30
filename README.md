@@ -18,6 +18,37 @@ Extract videos from X (formerly Twitter) tweets.
 - ✅ ffmpeg auto-install when possible
 - ✅ Automatic authenticated fallback for blocked downloads
 
+## Quick Install
+
+**One-line installer (macOS or Linux):**
+
+```bash
+curl -fsSL https://github.com/RichardBray/x-dl/releases/latest/download/install.sh | bash
+```
+
+This will:
+- Detect your platform (macOS/Linux) and architecture (ARM64/x86_64)
+- Download the appropriate binary
+- Install to `~/.local/bin/x-dl`
+- Add to PATH if needed
+- Prompt to install Playwright Chromium
+
+**After installation:**
+
+Reload your shell or run:
+```bash
+source ~/.bashrc   # or ~/.zshrc
+```
+
+Then run:
+```bash
+x-dl --help
+x-dl install          # Install Playwright Chromium
+x-dl https://x.com/user/status/123456
+```
+
+**See `STANDALONE_BINARIES.md` for more details.**
+
 ## Authentication Note
 
 **Twitter/X now requires authentication to view most tweets.**
