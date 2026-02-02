@@ -24,6 +24,7 @@ curl -fsSL https://github.com/RichardBray/x-dl/releases/latest/download/install.
 This will:
 - Detect your platform (macOS/Linux) and architecture (ARM64/x86_64)
 - Download the appropriate binary
+- Verify the download with SHA256 checksums
 - Install to `~/.local/bin/x-dl`
 - Add to PATH if needed
 - Prompt to install Playwright Chromium

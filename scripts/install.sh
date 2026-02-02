@@ -94,6 +94,53 @@ download_binary() {
     log_info "Binary downloaded successfully"
 }
 
+download_checksums() {
+    local checksums_url="https://github.com/RichardBray/x-dl/releases/latest/download/checksums.txt"
+
+    log_info "Downloading checksums for verification..."
+
+    CHECKSUMS=$(curl -fsSL "$checksums_url" 2>/dev/null || echo "")
+
+    if [[ -z "$CHECKSUMS" ]]; then
+        log_warn "Failed to download checksums. Skipping verification."
+        return 1
+    fi
+
+    log_info "Checksums downloaded successfully"
+    return 0
+}
+
+verify_checksum() {
+    local binary_path="$HOME/.local/bin/x-dl"
+
+    if [[ -z "$CHECKSUMS" ]]; then
+        return 0
+    fi
+
+    log_info "Verifying binary integrity..."
+
+    EXPECTED_SHA=$(echo "$CHECKSUMS" | grep "$BINARY" | awk '{print $1}')
+
+    if [[ -z "$EXPECTED_SHA" ]]; then
+        log_warn "Checksum not found for $BINARY. Skipping verification."
+        return 0
+    fi
+
+    ACTUAL_SHA=$(shasum -a 256 "$binary_path" | awk '{print $1}')
+
+    if [[ "$ACTUAL_SHA" != "$EXPECTED_SHA" ]]; then
+        log_error "Checksum verification failed!" 4
+        log_error "Expected: $EXPECTED_SHA" 4
+        log_error "Actual:   $ACTUAL_SHA" 4
+        log_error "The downloaded file may be corrupted or tampered with." 4
+        rm -f "$binary_path"
+        log_error "Removed corrupted file. Please try installing again." 4
+        exit 4
+    fi
+
+    log_info "Checksum verified successfully"
+}
+
 verify_binary() {
     local binary_path="$HOME/.local/bin/x-dl"
 
@@ -223,6 +270,8 @@ main() {
     detect_shell
     install_binary
     download_binary
+    download_checksums
+    verify_checksum
     verify_binary
     update_path
     prompt_chromium
