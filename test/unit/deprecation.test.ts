@@ -41,24 +41,37 @@ describe('Deprecation Notice Tests', () => {
       console.warn = originalWarn;
     });
 
-    it('should log warning when isPrivateTweet is called', async () => {
+    it('should log warning when verifyAuth is called', async () => {
+      const { VideoExtractor } = await import('../../src/extractor.ts');
+      const extractor = new VideoExtractor({ profileDir: '/tmp/test-profile' });
+      // Call verifyAuth which should log warning
+      await extractor.verifyAuth();
+
+      const hasWarning = warnings.some(w =>
+        w.includes('DEPRECATED') && w.includes('verifyAuth')
+      );
+      expect(hasWarning).toBe(true);
+    });
+
+    it('should log warning mentioning experimental/alpha status for verifyAuth', async () => {
+      const { VideoExtractor } = await import('../../src/extractor.ts');
+      const extractor = new VideoExtractor({ profileDir: '/tmp/test-profile' });
+      await extractor.verifyAuth();
+
+      const hasAlphaWarning = warnings.some(w =>
+        w.includes('experimental') || w.includes('alpha')
+      );
+      expect(hasAlphaWarning).toBe(true);
+    });
+
+    it('should NOT log warning when isPrivateTweet is called (called during normal operation)', async () => {
       const { isPrivateTweet } = await import('../../src/utils.ts');
       isPrivateTweet('<html></html>');
 
       const hasWarning = warnings.some(w =>
         w.includes('DEPRECATED') && w.includes('isPrivateTweet')
       );
-      expect(hasWarning).toBe(true);
-    });
-
-    it('should log warning mentioning experimental/alpha status', async () => {
-      const { isPrivateTweet } = await import('../../src/utils.ts');
-      isPrivateTweet('<html></html>');
-
-      const hasAlphaWarning = warnings.some(w =>
-        w.includes('experimental') || w.includes('alpha')
-      );
-      expect(hasAlphaWarning).toBe(true);
+      expect(hasWarning).toBe(false);
     });
   });
 

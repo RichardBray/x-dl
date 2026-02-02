@@ -83,7 +83,6 @@ export async function commandExists(command: string): Promise<boolean> {
  * May produce false positives/negatives. Use at your own risk.
  */
 export function isPrivateTweet(html: string): boolean {
-  console.warn('[DEPRECATED] isPrivateTweet is experimental and may not work reliably.');
   const privateIndicators = [
     'this tweet is from an account that is',
     'protected tweets',
