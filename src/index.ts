@@ -154,9 +154,10 @@ OPTIONS:
   --timeout <seconds>               Page load timeout in seconds (default: 30)
   --headed                          Show browser window for debugging
   --profile [dir]                   Persistent profile dir for authenticated extraction (default: ~/.x-dl-profile)
-  --login                           Open X in a persistent profile and wait for you to log in
+  --login                           Open X in a persistent profile and wait for you to log in (EXPERIMENTAL ALPHA)
   --browser-channel <channel>       Browser channel: chrome, chromium, or msedge (default: chromium)
   --browser-executable-path <path>  Path to browser executable (optional, overrides channel)
+  --verify-auth                     Check authentication status (EXPERIMENTAL ALPHA)
   --version, -v                     Show version information
   --help, -h                        Show this help message
 
@@ -351,6 +352,7 @@ async function main(): Promise<void> {
   }
 
   if (args.login) {
+    console.warn('[DEPRECATED] --login is an experimental alpha feature.');
     const profileDir = expandHomeDir(args.profile || DEFAULT_PROFILE_DIR);
     await runLoginFlow(profileDir, {
       browserChannel: args.browserChannel,
@@ -360,20 +362,21 @@ async function main(): Promise<void> {
   }
 
   if (args.verifyAuth) {
+    console.warn('[DEPRECATED] verify-auth is an experimental alpha feature.');
     const profileDir = expandHomeDir(args.profile || DEFAULT_PROFILE_DIR);
-    const extractor = new VideoExtractor({ 
+    const extractor = new VideoExtractor({
       profileDir,
       browserChannel: args.browserChannel,
       browserExecutablePath: args.browserExecutablePath,
     });
     const result = await extractor.verifyAuth();
-    
+
     console.log('\nAuth Status:');
     console.log(`- Auth token present: ${result.hasAuthToken ? 'Yes' : 'No'}`);
     console.log(`- Can access X.com/home: ${result.canAccessHome ? 'Yes' : 'No'}`);
     console.log(`- Auth cookies found: ${result.authCookies.join(', ') || 'None'}`);
     console.log(`\n${result.message}\n`);
-    
+
     process.exit(result.canAccessHome && result.hasAuthToken ? 0 : 1);
   }
 

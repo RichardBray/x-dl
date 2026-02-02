@@ -85,6 +85,7 @@ export class VideoExtractor {
 
       const pageHtml = await page.content();
 
+      // WARNING: Private tweet detection is experimental (ALPHA)
       if (isPrivateTweet(pageHtml)) {
         const debugInfo = await this.saveDebugArtifacts(page, pageHtml, 'protected-account');
         return {
@@ -526,12 +527,17 @@ export class VideoExtractor {
     }
   }
 
+  /**
+   * @deprecated Authentication for private tweets is experimental (ALPHA).
+   * May not bypass login walls reliably. Use at your own risk.
+   */
   async verifyAuth(): Promise<{
     hasAuthToken: boolean;
     canAccessHome: boolean;
     authCookies: string[];
     message: string;
   }> {
+    console.warn('[DEPRECATED] verifyAuth is experimental and may not work reliably.');
     if (!this.profileDir) {
       return {
         hasAuthToken: false,

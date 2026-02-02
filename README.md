@@ -6,6 +6,22 @@
 
 Extract videos from X (formerly Twitter) tweets.
 
+## Experimental Alpha Features
+
+The following features are marked as ALPHA and experimental:
+
+- **Private Tweet Detection**: `isPrivateTweet()` function and related error handling
+- **Authentication**: `--login` and `--verify-auth` CLI flags for bypassing login walls
+- **Protected Account Handling**: `verifyAuth()` method and auth cookie management
+
+These features:
+- May not work reliably with all X/Twitter pages
+- Could produce false positives/negatives in detection
+- May be removed or changed without warning
+- Are not suitable for production use
+
+Use these features at your own risk.
+
 ## Features
 
 - ✅ Extract videos from public X/Twitter tweets

@@ -1,0 +1,301 @@
+# Plan: Mark Private Tweet Features as Alpha/Work in Progress
+
+## Overview
+Create a new branch `feature/private-tweet-alpha` and add deprecation notices to all private tweet-related functionality, including tests to verify implementation.
+
+---
+
+## Phase 1: Create Branch
+```bash
+git checkout -b feature/private-tweet-alpha
+```
+
+---
+
+## Phase 2: Add Deprecation Notices
+
+### File Modifications
+
+#### 2.1 src/types.ts
+**Location:** Line ~67 (PROTECTED_ACCOUNT enum value)
+**Change:** Add JSDoc @deprecated comment above the enum value
+```typescript
+/**
+ * @deprecated Private tweet extraction is experimental (ALPHA).
+ * May not work reliably. Use at your own risk.
+ */
+PROTECTED_ACCOUNT = 'protected_account',
+```
+
+#### 2.2 src/utils.ts
+**Location:** Line ~81 (isPrivateTweet function)
+**Change:** Add deprecation notice above function definition and add console.warn call
+```typescript
+/**
+ * @deprecated Private tweet detection is experimental (ALPHA).
+ * May produce false positives/negatives. Use at your own risk.
+ */
+export function isPrivateTweet(html: string): boolean {
+  console.warn('[DEPRECATED] isPrivateTweet is experimental and may not work reliably.');
+  // ... existing code
+}
+```
+
+#### 2.3 src/extractor.ts
+**Location 1:** Line ~88 (private tweet check in extract method)
+**Change:** Add warning comment
+```typescript
+// WARNING: Private tweet detection is experimental (ALPHA)
+if (isPrivateTweet(pageHtml)) {
+  // ... existing code
+}
+```
+
+**Location 2:** Line ~529 (verifyAuth method)
+**Change:** Add deprecation notice and warning
+```typescript
+/**
+ * @deprecated Authentication for private tweets is experimental (ALPHA).
+ * May not bypass login walls reliably. Use at your own risk.
+ */
+private async verifyAuth(page: Page): Promise<boolean> {
+  console.warn('[DEPRECATED] verifyAuth is experimental and may not work reliably.');
+  // ... existing code
+}
+```
+
+#### 2.4 src/index.ts
+**Location 1:** Line ~97 (--login flag definition)
+**Location 2:** Line ~100 (--verify-auth flag definition)
+**Change:** Add description text indicating alpha status
+```typescript
+.option('--login', 'Create authenticated session (EXPERIMENTAL ALPHA)')
+.option('--verify-auth', 'Check authentication status (EXPERIMENTAL ALPHA)')
+```
+
+**Location 3:** Line ~342-358 (verifyAuth command handler)
+**Change:** Add deprecation warning before execution
+```typescript
+if (flags.verifyAuth) {
+  console.warn('[DEPRECATED] verify-auth is an experimental alpha feature.');
+  // ... existing code
+}
+```
+
+**Location 4:** Line ~447-453 (login command handler)
+**Change:** Add deprecation warning before execution
+```typescript
+if (flags.login) {
+  console.warn('[DEPRECATED] --login is an experimental alpha feature.');
+  // ... existing code
+}
+```
+
+#### 2.5 README.md
+**Location:** Add new section before Features section or at end of Features
+**Change:** Add alpha features section
+```markdown
+## Experimental Alpha Features
+
+The following features are marked as ALPHA and experimental:
+
+- **Private Tweet Detection**: `isPrivateTweet()` function and related error handling
+- **Authentication**: `--login` and `--verify-auth` CLI flags for bypassing login walls
+- **Protected Account Handling**: `verifyAuth()` method and auth cookie management
+
+These features:
+- May not work reliably with all X/Twitter pages
+- Could produce false positives/negatives in detection
+- May be removed or changed without warning
+- Are not suitable for production use
+
+Use these features at your own risk.
+```
+
+---
+
+## Phase 3: Create Test File
+
+### New File: test/unit/deprecation.test.ts
+
+```typescript
+import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
+
+describe('Deprecation Notice Tests', () => {
+  
+  describe('Static Analysis - JSDoc Comments', () => {
+    it('should have @deprecated comment on isPrivateTweet function', async () => {
+      const utilsFile = await Bun.file('./src/utils.ts').text();
+      expect(utilsFile).toContain('@deprecated');
+      expect(utilsFile).toContain('isPrivateTweet');
+      expect(utilsFile).toContain('ALPHA');
+    });
+
+    it('should have @deprecated comment on PROTECTED_ACCOUNT enum', async () => {
+      const typesFile = await Bun.file('./src/types.ts').text();
+      expect(typesFile).toContain('@deprecated');
+      expect(typesFile).toContain('PROTECTED_ACCOUNT');
+      expect(typesFile).toContain('ALPHA');
+    });
+
+    it('should have @deprecated comment on verifyAuth method', async () => {
+      const extractorFile = await Bun.file('./src/extractor.ts').text();
+      expect(extractorFile).toContain('@deprecated');
+      expect(extractorFile).toContain('verifyAuth');
+      expect(extractorFile).toContain('ALPHA');
+    });
+  });
+
+  describe('Runtime - Console Warnings', () => {
+    let originalWarn: typeof console.warn;
+    const warnings: string[] = [];
+
+    beforeEach(() => {
+      originalWarn = console.warn;
+      warnings.length = 0;
+      console.warn = (...args: any[]) => {
+        warnings.push(args.join(' '));
+      };
+    });
+
+    afterEach(() => {
+      console.warn = originalWarn;
+    });
+
+    it('should log warning when isPrivateTweet is called', async () => {
+      const { isPrivateTweet } = await import('../src/utils.ts');
+      isPrivateTweet('<html></html>');
+      
+      const hasWarning = warnings.some(w => 
+        w.includes('DEPRECATED') && w.includes('isPrivateTweet')
+      );
+      expect(hasWarning).toBe(true);
+    });
+
+    it('should log warning mentioning experimental/alpha status', async () => {
+      const { isPrivateTweet } = await import('../src/utils.ts');
+      isPrivateTweet('<html></html>');
+      
+      const hasAlphaWarning = warnings.some(w => 
+        w.includes('experimental') || w.includes('alpha')
+      );
+      expect(hasAlphaWarning).toBe(true);
+    });
+  });
+
+  describe('CLI - Flag Deprecation Warnings', () => {
+    it('should show deprecation warning when using --login flag', async () => {
+      const process = Bun.spawn(
+        ['bun', './bin/xld', '--login'],
+        {
+          cwd: import.meta.dir + '/../',
+          stdout: 'pipe',
+          stderr: 'pipe',
+        }
+      );
+
+      const stderr = await new Response(process.stderr).text();
+      
+      expect(stderr).toMatch(/deprecated/i);
+      expect(stderr).toMatch(/alpha|experimental/i);
+    });
+
+    it('should show deprecation warning when using --verify-auth flag', async () => {
+      const process = Bun.spawn(
+        ['bun', './bin/xld', '--verify-auth'],
+        {
+          cwd: import.meta.dir + '/../',
+          stdout: 'pipe',
+          stderr: 'pipe',
+        }
+      );
+
+      const stderr = await new Response(process.stderr).text();
+      
+      expect(stderr).toMatch(/deprecated/i);
+      expect(stderr).toMatch(/alpha|experimental/i);
+    });
+  });
+
+  describe('Documentation - README Section', () => {
+    it('should have experimental alpha section in README', async () => {
+      const readme = await Bun.file('./README.md').text();
+      expect(readme).toMatch(/experimental\s+alpha/i);
+      expect(readme).toMatch(/alpha\s+features/i);
+    });
+
+    it('should mention private tweet features as alpha in README', async () => {
+      const readme = await Bun.file('./README.md').text();
+      expect(readme).toMatch(/private.*tweet/i);
+      expect(readme).toMatch(/authentication/i);
+    });
+  });
+
+  describe('Integration - Combined Deprecation Check', () => {
+    it('should have consistent deprecation messaging across all files', async () => {
+      const [utils, types, extractor, readme] = await Promise.all([
+        Bun.file('./src/utils.ts').text(),
+        Bun.file('./src/types.ts').text(),
+        Bun.file('./src/extractor.ts').text(),
+        Bun.file('./README.md').text(),
+      ]);
+
+      const allFiles = [utils, types, extractor, readme];
+      
+      allFiles.forEach(file => {
+        if (file.includes('@deprecated') || file.includes('deprecated')) {
+          expect(file).toMatch(/alpha|experimental/i);
+        }
+      });
+    });
+  });
+});
+```
+
+---
+
+## Phase 4: Run Tests
+
+```bash
+# Run all tests to verify implementation
+bun test
+
+# Run only deprecation tests
+bun test test/unit/deprecation.test.ts
+
+# Run unit tests
+bun test test/unit/
+
+# Verify existing tests still pass
+bun test test/unit/auth.test.ts
+```
+
+---
+
+## Phase 5: Summary Checklist
+
+- [ ] Branch `feature/private-tweet-alpha` created
+- [ ] `@deprecated` JSDoc added to `isPrivateTweet()` in `src/utils.ts`
+- [ ] `@deprecated` JSDoc added to `PROTECTED_ACCOUNT` in `src/types.ts`
+- [ ] `@deprecated` JSDoc added to `verifyAuth()` in `src/extractor.ts`
+- [ ] Warning comments added to private tweet check in `src/extractor.ts`
+- [ ] CLI flag descriptions updated with ALPHA status in `src/index.ts`
+- [ ] Console warnings added to `isPrivateTweet()` and `verifyAuth()`
+- [ ] Alpha features section added to `README.md`
+- [ ] Test file `test/unit/deprecation.test.ts` created
+- [ ] All tests pass (`bun test`)
+- [ ] Existing tests still pass (auth.test.ts, extractor.test.ts, cli.test.ts)
+
+---
+
+## Expected Files Changed/Created
+
+**Modified:**
+- src/types.ts
+- src/utils.ts
+- src/extractor.ts
+- src/index.ts
+- README.md
+
+**Created:**
+- test/unit/deprecation.test.ts
