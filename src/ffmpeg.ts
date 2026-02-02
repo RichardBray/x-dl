@@ -22,6 +22,14 @@ export async function downloadHlsWithFfmpeg(options: DownloadHlsOptions): Promis
 
   console.log('📥 Downloading HLS video via ffmpeg...');
 
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+
+  if (fs.existsSync(outputPath)) {
+    console.log(`⚠️  File already exists, removing: ${outputPath}`);
+    fs.unlinkSync(outputPath);
+  }
+
   return new Promise((resolve, reject) => {
     const args = [
       '-y',
