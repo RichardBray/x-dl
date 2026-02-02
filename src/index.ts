@@ -112,6 +112,10 @@ function parseArgs(args: string[]): CliOptions {
           i++;
         }
         break;
+      case '--version':
+      case '-v':
+        showVersion();
+        break;
       case '--help':
       case '-h':
         showHelp();
@@ -153,6 +157,7 @@ OPTIONS:
   --login                           Open X in a persistent profile and wait for you to log in
   --browser-channel <channel>       Browser channel: chrome, chromium, or msedge (default: chromium)
   --browser-executable-path <path>  Path to browser executable (optional, overrides channel)
+  --version, -v                     Show version information
   --help, -h                        Show this help message
 
 INSTALL:
@@ -206,6 +211,11 @@ EXAMPLES:
   ${commandName} install
   ${commandName} install --with-deps
 `);
+}
+
+function showVersion(): void {
+  console.log('0.1.0');
+  process.exit(0);
 }
 
 function getOutputPath(tweetUrl: string, options: CliOptions, preferredExtension: string = 'mp4'): string {
@@ -314,9 +324,19 @@ async function main(): Promise<void> {
     return;
   }
 
-  console.log('🎬 x-dl - X/Twitter Video Extractor\n');
-
   const args = parseArgs(argv);
+
+  const needsDependencies = args.login || args.verifyAuth || args.url;
+
+  if (!needsDependencies) {
+    const commandName = getCommandName();
+    console.error('❌ Error: No URL provided');
+    console.error(`\nUsage: ${commandName} <url> [options]`);
+    console.error(`Run: ${commandName} --help for more information\n`);
+    process.exit(1);
+  }
+
+  console.log('🎬 x-dl - X/Twitter Video Extractor\n');
 
   const installed = await ensurePlaywrightReady();
   if (!installed) {
@@ -355,14 +375,6 @@ async function main(): Promise<void> {
     console.log(`\n${result.message}\n`);
     
     process.exit(result.canAccessHome && result.hasAuthToken ? 0 : 1);
-  }
-
-  if (!args.url) {
-    const commandName = getCommandName();
-    console.error('❌ Error: No URL provided');
-    console.error(`\nUsage: ${commandName} <url> [options]`);
-    console.error(`Run: ${commandName} --help for more information\n`);
-    process.exit(1);
   }
 
   if (!isValidTwitterUrl(args.url)) {
