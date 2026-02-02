@@ -8,6 +8,10 @@ export interface VideoUrl {
 
 export enum ErrorClassification {
   LOGIN_WALL = 'login_wall',
+  /**
+   * @deprecated Private tweet extraction is experimental (ALPHA).
+   * May not work reliably. Use at your own risk.
+   */
   PROTECTED_ACCOUNT = 'protected_account',
   NO_VIDEO_FOUND = 'no_video_found',
   INVALID_URL = 'invalid_url',

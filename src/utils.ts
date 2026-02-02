@@ -78,6 +78,10 @@ export async function commandExists(command: string): Promise<boolean> {
   }
 }
 
+/**
+ * @deprecated Private tweet detection is experimental (ALPHA).
+ * May produce false positives/negatives. Use at your own risk.
+ */
 export function isPrivateTweet(html: string): boolean {
   const privateIndicators = [
     'this tweet is from an account that is',
