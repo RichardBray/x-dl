@@ -6,28 +6,14 @@
 
 Extract videos from X (formerly Twitter) tweets.
 
-## Experimental Alpha Features
-
-The following features are marked as ALPHA and experimental:
-
-- **Private Tweet Detection**: `isPrivateTweet()` function and related error handling
-- **Authentication**: `--login` and `--verify-auth` CLI flags for bypassing login walls
-- **Protected Account Handling**: `verifyAuth()` method and auth cookie management
-
-These features:
-- May not work reliably with all X/Twitter pages
-- Could produce false positives/negatives in detection
-- May be removed or changed without warning
-- Are not suitable for production use
-
-Use these features at your own risk.
-
 ## Features
 
 - ✅ Extract videos from public X/Twitter tweets
 - ✅ Supports multiple formats (mp4, webm, gif, etc.)
 - ✅ Automatic format selection (highest quality)
 - ✅ Download videos directly or just get of URL
+- ⚠️ Downloading videos from private tweets (alpha)
+- ❌ Windows support
 
 ## Quick Install
 
@@ -84,37 +70,22 @@ x-dl --url-only https://x.com/WesRoth/status/2013693268190437410
 ```
 
 ```bash
-# Log in once (interactive browser), saving cookies to a profile dir
+# Log in once (interactive browser), saving cookies to a profile dir (alpha)
 x-dl --login --profile ~/.x-dl-profile
 
 # Then extract using the logged-in session
 x-dl --profile ~/.x-dl-profile --url-only https://x.com/WesRoth/status/2013693268190437410
-```
-
-When downloading an HLS (m3u8) playlist, the tool automatically uses ffmpeg:
-
-```bash
-# This will use ffmpeg to download and convert m3u8 to mp4
-x-dl https://x.com/user/status/123456
-```
-
-```bash
-# Log in once (interactive browser), saving cookies to a profile dir
-x-dl --login --profile ~/.x-dl-profile
-
-# Then extract using the logged-in session
-x-dl --profile ~/.x-dl-profile --url-only https://x.com/WesRoth/status/2013693268190437410
-```
-
-If the result is a `.m3u8` playlist, use an external tool to download the actual video:
-
-```bash
-yt-dlp "<m3u8-url>"
-# or
-ffmpeg -i "<m3u8-url>" -c copy out.mp4
 ```
 
 ## Installation
+
+**One-line installer (mecommended):**
+
+```bash
+curl -fsSL https://github.com/RichardBray/x-dl/releases/latest/download/install.sh | bash
+```
+
+**From Source**
 
 ### Prerequisites
 
@@ -148,17 +119,6 @@ The `install` command:
 - With `--with-deps`, also installs ffmpeg and Linux system dependencies
 - Works both when running via Bun and when using a compiled single-file binary
 
-### Create a symlink for easy access (optional)
-
-```bash
-bun link
-```
-
-Or run directly:
-
-```bash
-bun run src/index.ts <url>
-```
 
 ## Usage
 
@@ -224,7 +184,7 @@ x-dl --url-only https://x.com/user/status/123456
 x-dl --headed https://x.com/user/status/123456
 ```
 
-**Login once, then reuse the session:**
+**Login once, then reuse the session (alpha):**
 ```bash
 # Log in interactively (creates/uses the profile dir)
 x-dl --login --profile ~/.x-dl-profile
@@ -281,26 +241,16 @@ When extracting a video, the tool will:
 
 ## Limitations
 
-- **Authentication Required**: Most tweets require authentication to view content
 - **Public tweets only**: Private or protected tweets cannot be extracted
 - **Time-limited URLs**: Video URLs may expire after some time
 - **Rate limiting**: X may rate-limit excessive requests
-- **Login walls**: Use `--login` and `--profile` to extract login-walled tweets
+- **Login walls**: Use `--login` and `--profile` to extract login-walled tweets (alpha)
 
 **How to tell if a tweet can be extracted:**
 1. Try opening the tweet in an incognito/private browser window
 2. If you see a "Sign up" or "Log in" prompt, this tool cannot extract it
 3. If the content loads without login, extraction should work
 
-## Error Handling
-
-The tool will report specific errors for:
-
-- ❌ Invalid URLs
-- ❌ Private/protected tweets
-- ❌ Tweets without video content
-- ❌ Network timeouts
-- ❌ Download failures
 
 ## Testing
 
