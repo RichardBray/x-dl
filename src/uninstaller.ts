@@ -180,32 +180,44 @@ export async function removePlaywrightChromium(): Promise<boolean> {
   }
 
   console.log('🗑️  Removing Playwright Chromium...');
-
+  
   try {
     const mod = await import('playwright/lib/install');
     if (typeof mod.uninstallBrowsersForNpmInstall === 'function') {
       await mod.uninstallBrowsersForNpmInstall(['chromium']);
+      console.log('✅ Uninstalled Playwright Chromium');
+      return true;
     } else if (typeof (mod as any).uninstall === 'function') {
       await (mod as any).uninstall(['chromium']);
-    }
-    console.log('✅ Uninstalled Playwright Chromium');
-    return true;
-  } catch {
-    try {
-      const entries = fs.readdirSync(playwrightPath);
-      const chromiumDirs = entries.filter(entry => entry.startsWith('chromium'));
-      
-      for (const dir of chromiumDirs) {
-        fs.rmSync(path.join(playwrightPath, dir), { recursive: true, force: true });
-      }
-      
-      console.log(`✅ Removed ${chromiumDirs.length} Chromium directory/directories`);
+      console.log('✅ Uninstalled Playwright Chromium');
       return true;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      console.error(`❌ Failed to remove Playwright: ${message}`);
+    } else {
+      console.log('ℹ️  Playwright uninstall API not available, using manual removal');
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(`⚠️  Playwright uninstall failed: ${message}, trying manual removal...`);
+  }
+
+  try {
+    const entries = fs.readdirSync(playwrightPath);
+    const chromiumDirs = entries.filter(entry => entry.startsWith('chromium'));
+    
+    if (chromiumDirs.length === 0) {
+      console.log('ℹ️  No Chromium directories found');
       return false;
     }
+    
+    for (const dir of chromiumDirs) {
+      fs.rmSync(path.join(playwrightPath, dir), { recursive: true, force: true });
+    }
+    
+    console.log(`✅ Removed ${chromiumDirs.length} Chromium directory/directories`);
+    return true;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`❌ Failed to remove Playwright: ${message}`);
+    return false;
   }
 }
 
