@@ -225,12 +225,12 @@ export function removeShellConfigEntry(): boolean {
         } else {
           fs.unlinkSync(configPath);
         }
-        console.log(`✅ Removed x-dl entry from ${path}`);
+        console.log(`✅ Removed x-dl entry from ${configPath}`);
         modified = true;
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      console.warn(`⚠️  Failed to update ${path}: ${message}`);
+      console.warn(`⚠️  Failed to update ${configPath}: ${message}`);
     }
   }
 
