@@ -233,11 +233,7 @@ export function removeShellConfigEntry(): boolean {
 
       if (content !== newContent) {
         const trimmedContent = newContent.trim();
-        if (trimmedContent) {
-          fs.writeFileSync(configPath, trimmedContent + '\n', 'utf-8');
-        } else {
-          fs.unlinkSync(configPath);
-        }
+        fs.writeFileSync(configPath, trimmedContent ? trimmedContent + '\n' : '', 'utf-8');
         console.log(`✅ Removed x-dl entry from ${configPath}`);
         modified = true;
       }
