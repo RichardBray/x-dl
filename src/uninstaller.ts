@@ -202,11 +202,15 @@ export async function removePlaywrightChromium(): Promise<boolean> {
 
 export function removeShellConfigEntry(): boolean {
   const home = os.homedir();
+  
+  const bashZshPattern = /# Added by x-dl installer\s*\nexport PATH=.*\.local\/bin.*\s*\n?/g;
+  const fishPattern = /fish_add_path\s+.*\.local\/bin\s*\n?/g;
+
   const configFiles = [
-    { path: path.join(home, '.bash_profile'), pattern: /x-dl.*PATH.*local\/bin.*\n?/g },
-    { path: path.join(home, '.bashrc'), pattern: /x-dl.*PATH.*local\/bin.*\n?/g },
-    { path: path.join(home, '.zshrc'), pattern: /x-dl.*PATH.*local\/bin.*\n?/g },
-    { path: path.join(home, '.config', 'fish', 'config.fish'), pattern: /x-dl.*PATH.*local\/bin.*\n?/g },
+    { path: path.join(home, '.bash_profile'), pattern: bashZshPattern },
+    { path: path.join(home, '.bashrc'), pattern: bashZshPattern },
+    { path: path.join(home, '.zshrc'), pattern: bashZshPattern },
+    { path: path.join(home, '.config', 'fish', 'config.fish'), pattern: fishPattern },
   ];
 
   let modified = false;
