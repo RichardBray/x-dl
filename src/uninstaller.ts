@@ -95,6 +95,9 @@ export async function removeBinary(method: InstallationMethod): Promise<boolean>
         console.error(`❌ Failed to remove binary: ${message}`);
         return false;
       }
+    } else {
+      console.log('ℹ️  Binary already removed');
+      return true;
     }
   } else if (method === 'package') {
     const bunPath = which('bun');
