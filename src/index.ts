@@ -33,7 +33,6 @@ interface InstallCliOptions {
 interface UninstallCliOptions {
   all?: boolean;
   keepProfile?: boolean;
-  keepPlaywright?: boolean;
   help?: boolean;
 }
 
@@ -339,7 +338,6 @@ USAGE:
 
 OPTIONS:
   --all, -a              Remove everything including Playwright Chromium
-  --keep-playwright      Keep Playwright Chromium (default)
   --keep-profile          Keep x-dl profile directory (default: removes)
   --help, -h             Show this help message
 
@@ -352,9 +350,6 @@ WHAT GETS REMOVED:
 EXAMPLES:
   # Full uninstall (recommended for testing)
   ${commandName} uninstall --all
-
-  # Keep Playwright (if other tools use it)
-  ${commandName} uninstall --keep-playwright
 
   # Keep profile data
   ${commandName} uninstall --keep-profile
@@ -371,9 +366,6 @@ async function handleUninstallMode(args: string[]): Promise<void> {
       case '--all':
       case '-a':
         options.all = true;
-        break;
-      case '--keep-playwright':
-        options.keepPlaywright = true;
         break;
       case '--keep-profile':
         options.keepProfile = true;

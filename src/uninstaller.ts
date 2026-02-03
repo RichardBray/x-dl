@@ -6,7 +6,6 @@ import readline from 'node:readline';
 export interface UninstallOptions {
   all?: boolean;
   keepProfile?: boolean;
-  keepPlaywright?: boolean;
 }
 
 function getPlatform(): 'macos' | 'linux' | 'other' {
@@ -289,13 +288,11 @@ export async function runUninstall(options: UninstallOptions = {}): Promise<void
     }
   }
 
-  if (options.all && !options.keepPlaywright) {
+  if (options.all) {
     const removePlaywrightConfirmed = await confirm('Remove Playwright Chromium?');
     if (removePlaywrightConfirmed) {
       await removePlaywrightChromium();
     }
-  } else if (options.keepPlaywright) {
-    console.log('ℹ️  Keeping Playwright Chromium (--keep-playwright flag)');
   }
 
   console.log('\n✅ Uninstall complete');
