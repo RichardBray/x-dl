@@ -192,8 +192,14 @@ export async function removePlaywrightChromium(): Promise<boolean> {
     return true;
   } catch {
     try {
-      fs.rmSync(playwrightPath, { recursive: true, force: true });
-      console.log('✅ Removed Playwright directory');
+      const entries = fs.readdirSync(playwrightPath);
+      const chromiumDirs = entries.filter(entry => entry.startsWith('chromium'));
+      
+      for (const dir of chromiumDirs) {
+        fs.rmSync(path.join(playwrightPath, dir), { recursive: true, force: true });
+      }
+      
+      console.log(`✅ Removed ${chromiumDirs.length} Chromium directory/directories`);
       return true;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
