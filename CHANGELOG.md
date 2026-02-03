@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-02-20
+
+### Added
+- Active progress monitoring for ffmpeg HLS downloads
+- Animated spinner during HLS downloads to show activity
+- Dual timeout protection: 30-second no-progress + 2-minute absolute timeout
+- Better error messages for stalled or timed-out downloads
+
+### Improved
+- No more indefinite hanging on stuck ffmpeg processes
+- Visual feedback during long HLS downloads
+- Early failure detection for network issues
+
 ## [0.2.0] - 2026-02-02
 
 ### Added
