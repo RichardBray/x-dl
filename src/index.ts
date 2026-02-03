@@ -9,6 +9,7 @@ import { downloadVideo } from './downloader.ts';
 import { ensurePlaywrightReady, runInstall, InstallOptions } from './installer.ts';
 import { generateFilename, isValidTwitterUrl, parseTweetUrl } from './utils.ts';
 import { downloadHlsWithFfmpeg } from './ffmpeg.ts';
+import { runUninstall, UninstallOptions } from './uninstaller.ts';
 
 interface CliOptions {
   url?: string;
@@ -26,6 +27,13 @@ interface CliOptions {
 
 interface InstallCliOptions {
   withDeps?: boolean;
+  help?: boolean;
+}
+
+interface UninstallCliOptions {
+  all?: boolean;
+  keepProfile?: boolean;
+  keepPlaywright?: boolean;
   help?: boolean;
 }
 
@@ -161,9 +169,13 @@ OPTIONS:
   --version, -v                     Show version information
   --help, -h                        Show this help message
 
-INSTALL:
-  x-dl install               Install Playwright Chromium only
-  x-dl install --with-deps   Install Chromium + ffmpeg + Linux deps (may require sudo on Linux)
+ INSTALL:
+   x-dl install               Install Playwright Chromium only
+   x-dl install --with-deps   Install Chromium + ffmpeg + Linux deps (may require sudo on Linux)
+
+ UNINSTALL:
+   x-dl uninstall             Remove x-dl binary and config
+   x-dl uninstall --all       Remove everything including Playwright Chromium
 
 AUTH EXAMPLES:
   # Create/reuse a persistent login session
@@ -215,7 +227,7 @@ EXAMPLES:
 }
 
 function showVersion(): void {
-  console.log('0.3.1');
+  console.log('0.3.2');
   process.exit(0);
 }
 
@@ -317,11 +329,89 @@ async function handleInstallMode(args: string[]): Promise<void> {
   }
 }
 
+function showUninstallHelp(): void {
+  const commandName = 'x-dl';
+  console.log(`
+${commandName} uninstall - Remove x-dl and dependencies
+
+USAGE:
+  ${commandName} uninstall [OPTIONS]
+
+OPTIONS:
+  --all, -a              Remove everything including Playwright Chromium
+  --keep-playwright      Keep Playwright Chromium (default)
+  --keep-profile          Keep x-dl profile directory (default: removes)
+  --help, -h             Show this help message
+
+WHAT GETS REMOVED:
+  - x-dl binary (from ~/.local/bin or package manager)
+  - PATH entry from shell config
+  - x-dl profile directory (~/.x-dl-profile)
+  - Playwright Chromium (only with --all flag)
+
+EXAMPLES:
+  # Full uninstall (recommended for testing)
+  ${commandName} uninstall --all
+
+  # Keep Playwright (if other tools use it)
+  ${commandName} uninstall --keep-playwright
+
+  # Keep profile data
+  ${commandName} uninstall --keep-profile
+  `);
+}
+
+async function handleUninstallMode(args: string[]): Promise<void> {
+  const options: UninstallCliOptions = {};
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+
+    switch (arg) {
+      case '--all':
+      case '-a':
+        options.all = true;
+        break;
+      case '--keep-playwright':
+        options.keepPlaywright = true;
+        break;
+      case '--keep-profile':
+        options.keepProfile = true;
+        break;
+      case '--help':
+      case '-h':
+        showUninstallHelp();
+        process.exit(0);
+        break;
+      default:
+        console.error(`\u274c Unknown flag for uninstall: ${arg}`);
+        console.error('\nRun: x-dl uninstall --help for more information\n');
+        process.exit(1);
+    }
+  }
+
+  console.log('\ud83c\udfac x-dl - X/Twitter Video Extractor\n');
+
+  try {
+    await runUninstall(options);
+    process.exit(0);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`\n\u274c Uninstall failed: ${message}\n`);
+    process.exit(1);
+  }
+}
+
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);
 
   if (argv[0] === 'install') {
     await handleInstallMode(argv.slice(1));
+    return;
+  }
+
+  if (argv[0] === 'uninstall') {
+    await handleUninstallMode(argv.slice(1));
     return;
   }
 
