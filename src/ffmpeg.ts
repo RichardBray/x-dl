@@ -65,9 +65,10 @@ export async function downloadHlsWithFfmpeg(options: DownloadHlsOptions): Promis
       spinnerIndex = (spinnerIndex + 1) % spinnerChars.length;
 
       try {
+        const now = Date.now();
+
         if (fs.existsSync(outputPath)) {
           const currentFileSize = fs.statSync(outputPath).size;
-          const now = Date.now();
 
           if (currentFileSize > lastFileSize) {
             lastFileSize = currentFileSize;
@@ -80,6 +81,13 @@ export async function downloadHlsWithFfmpeg(options: DownloadHlsOptions): Promis
             ffmpeg.kill('SIGKILL');
             reject(new Error(`FFMPEG stuck: no progress for ${noProgressTimeoutMs / 1000} seconds`));
           }
+        }
+        else if (now - lastProgressTime > noProgressTimeoutMs) {
+          clearInterval(pollInterval);
+          clearTimeout(timeoutHandle);
+          rejected = true;
+          ffmpeg.kill('SIGKILL');
+          reject(new Error(`FFMPEG stuck: no progress for ${noProgressTimeoutMs / 1000} seconds`));
         }
       } catch (_err) {
       }
