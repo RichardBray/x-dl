@@ -2,12 +2,11 @@
 
 import os from 'node:os';
 import path from 'node:path';
-import fs from 'node:fs';
 
 import { VideoExtractor } from './extractor.ts';
 import { downloadVideo } from './downloader.ts';
-import { ensurePlaywrightReady, runInstall, InstallOptions } from './installer.ts';
-import { generateFilename, isValidTwitterUrl, parseTweetUrl } from './utils.ts';
+import { ensurePlaywrightReady, runInstall } from './installer.ts';
+import { generateFilename, isValidTwitterUrl, parseTweetUrl, formatBytes } from './utils.ts';
 import { downloadHlsWithFfmpeg } from './ffmpeg.ts';
 
 interface CliOptions {
@@ -79,7 +78,18 @@ function parseArgs(args: string[]): CliOptions {
         }
         break;
       case '--timeout':
-        options.timeout = parseInt(nextArg, 10) * 1000;
+        if (!nextArg || nextArg.startsWith('-')) {
+          console.error('❌ Error: --timeout requires a numeric value (e.g., --timeout 30)');
+          console.error('Usage: x-dl --timeout <seconds> <url>');
+          process.exit(1);
+        }
+        const timeoutSeconds = parseInt(nextArg, 10);
+        if (isNaN(timeoutSeconds) || timeoutSeconds <= 0) {
+          console.error('❌ Error: --timeout must be a positive number');
+          console.error(`Invalid value: ${nextArg}`);
+          process.exit(1);
+        }
+        options.timeout = timeoutSeconds * 1000;
         i++;
         break;
       case '--headed':
@@ -215,7 +225,7 @@ EXAMPLES:
 }
 
 function showVersion(): void {
-  console.log('0.3.1');
+  console.log('0.4.0');
   process.exit(0);
 }
 
@@ -471,14 +481,6 @@ async function main(): Promise<void> {
     console.error(`\n\n❌ Download failed: ${message}\n`);
     process.exit(1);
   }
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 B';
-  const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
 main().catch((error) => {

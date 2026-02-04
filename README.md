@@ -12,7 +12,7 @@ Extract videos from X (formerly Twitter) tweets.
 - ✅ Supports multiple formats (mp4, webm, gif, etc.)
 - ✅ Automatic format selection (highest quality)
 - ✅ Download videos directly or just get of URL
-- ⚠️ Downloading videos from private tweets (alpha)
+- ⚠️ Downloading videos from private tweets (experimental alpha features)
 - ❌ Windows support
 
 ## Quick Install

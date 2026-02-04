@@ -17,7 +17,6 @@ export enum ErrorClassification {
   INVALID_URL = 'invalid_url',
   PARSE_ERROR = 'parse_error',
   EXTRACTION_ERROR = 'extraction_error',
-  UNKNOWN = 'unknown',
 }
 
 export interface ExtractResult {

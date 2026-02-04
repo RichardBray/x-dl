@@ -3,6 +3,7 @@ import { spawn } from 'node:child_process';
 export interface DownloadHlsOptions {
   playlistUrl: string;
   outputPath: string;
+  timeout?: number;
 }
 
 export interface FfmpegCapabilities {
@@ -18,17 +19,22 @@ export interface FfmpegCapabilityCheckResult extends FfmpegCapabilities {
 }
 
 export async function downloadHlsWithFfmpeg(options: DownloadHlsOptions): Promise<string> {
-  const { playlistUrl, outputPath } = options;
+  const { playlistUrl, outputPath, timeout } = options;
 
   console.log('📥 Downloading HLS video via ffmpeg...');
 
   const fs = await import('node:fs');
-  const path = await import('node:path');
 
   if (fs.existsSync(outputPath)) {
     console.log(`⚠️  File already exists, removing: ${outputPath}`);
     fs.unlinkSync(outputPath);
   }
+
+  const timeoutMs = timeout ?? 120000;
+  const noProgressTimeoutMs = 30000;
+  let lastFileSize = 0;
+  let lastProgressTime = Date.now();
+  let rejected = false;
 
   return new Promise((resolve, reject) => {
     const args = [
@@ -51,18 +57,69 @@ export async function downloadHlsWithFfmpeg(options: DownloadHlsOptions): Promis
       });
     }
 
+    const spinnerChars = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+    let spinnerIndex = 0;
+
+    const pollInterval = setInterval(() => {
+      process.stdout.write(`\r${spinnerChars[spinnerIndex]} Downloading HLS...`);
+      spinnerIndex = (spinnerIndex + 1) % spinnerChars.length;
+
+      try {
+        const now = Date.now();
+
+        if (fs.existsSync(outputPath)) {
+          const currentFileSize = fs.statSync(outputPath).size;
+
+          if (currentFileSize > lastFileSize) {
+            lastFileSize = currentFileSize;
+            lastProgressTime = now;
+          }
+          else if (now - lastProgressTime > noProgressTimeoutMs) {
+            clearInterval(pollInterval);
+            clearTimeout(timeoutHandle);
+            rejected = true;
+            ffmpeg.kill();
+            reject(new Error(`FFMPEG stuck: no progress for ${noProgressTimeoutMs / 1000} seconds`));
+          }
+        }
+        else if (now - lastProgressTime > noProgressTimeoutMs) {
+          clearInterval(pollInterval);
+          clearTimeout(timeoutHandle);
+          rejected = true;
+          ffmpeg.kill();
+          reject(new Error(`FFMPEG stuck: no progress for ${noProgressTimeoutMs / 1000} seconds`));
+        }
+      } catch (_err) {
+      }
+    }, 2000);
+
+    const timeoutHandle = setTimeout(() => {
+      clearInterval(pollInterval);
+      rejected = true;
+      ffmpeg.kill();
+      reject(new Error(`FFMPEG download timed out after ${timeoutMs / 1000} seconds`));
+    }, timeoutMs);
+
     ffmpeg.on('close', (code) => {
-      if (code === 0) {
-        console.log('✅ HLS download completed');
+      clearInterval(pollInterval);
+      clearTimeout(timeoutHandle);
+
+      if (code === 0 && !rejected) {
+        process.stdout.write('\r✅ HLS download completed\n');
         resolve(outputPath);
-      } else {
+      } else if (!rejected) {
         const error = stderr.trim() || `ffmpeg exited with code ${code ?? 'null (signal)'}`;
         reject(new Error(`Failed to download HLS: ${error}`));
       }
     });
 
     ffmpeg.on('error', (err) => {
-      reject(new Error(`Failed to start ffmpeg: ${err.message}`));
+      clearInterval(pollInterval);
+      clearTimeout(timeoutHandle);
+      if (!rejected) {
+        rejected = true;
+        reject(new Error(`Failed to start ffmpeg: ${err.message}`));
+      }
     });
   });
 }

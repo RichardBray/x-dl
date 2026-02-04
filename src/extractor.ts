@@ -156,17 +156,7 @@ export class VideoExtractor {
     let context: BrowserContext | null = null;
 
     try {
-      const launchOptions = {
-        headless: true,
-      };
-
-      if (this.browserExecutablePath) {
-        launchOptions.executablePath = this.browserExecutablePath;
-      } else if (this.browserChannel) {
-        launchOptions.channel = this.browserChannel;
-      }
-
-      context = await chromium.launchPersistentContext(this.profileDir, launchOptions);
+      context = await this.createPersistentContext(chromium, true);
 
       const resp = await context.request.get(videoUrl);
       if (!resp.ok()) {
@@ -218,6 +208,21 @@ export class VideoExtractor {
     const context = await browser.newContext();
     const page = await context.newPage();
     return { browser, context, page };
+  }
+
+  private async createPersistentContext(
+    chromium: typeof import('playwright').chromium,
+    headless: boolean = true
+  ): Promise<BrowserContext> {
+    const launchOptions: any = { headless };
+
+    if (this.browserExecutablePath) {
+      launchOptions.executablePath = this.browserExecutablePath;
+    } else if (this.browserChannel) {
+      launchOptions.channel = this.browserChannel;
+    }
+
+    return await chromium.launchPersistentContext(this.profileDir!, launchOptions);
   }
 
   private async safeClose({
@@ -553,17 +558,7 @@ export class VideoExtractor {
     let page: Page | null = null;
 
     try {
-      const launchOptions = {
-        headless: true,
-      };
-
-      if (this.browserExecutablePath) {
-        launchOptions.executablePath = this.browserExecutablePath;
-      } else if (this.browserChannel) {
-        launchOptions.channel = this.browserChannel;
-      }
-
-      context = await chromium.launchPersistentContext(this.profileDir, launchOptions);
+      context = await this.createPersistentContext(chromium, true);
 
       // Check for auth cookies
       const cookies = await context.cookies();

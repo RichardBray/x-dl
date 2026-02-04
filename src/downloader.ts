@@ -1,4 +1,4 @@
-import { DownloadOptions, VideoUrl } from './types.ts';
+import { DownloadOptions } from './types.ts';
 import { formatBytes, formatTime } from './utils.ts';
 
 export async function downloadVideo(options: DownloadOptions): Promise<string> {
@@ -58,26 +58,10 @@ export async function downloadVideo(options: DownloadOptions): Promise<string> {
     
     console.log(`✅ Download completed in ${formatTime(elapsed)}`);
     console.log(`📦 Final size: ${formatBytes(fileSize)}`);
-    
+
     return outputPath;
   } catch (error) {
     console.error('❌ Download failed:', error);
     throw error;
-  }
-}
-
-export async function getUrlInfo(url: string): Promise<{ size?: number; type?: string }> {
-  try {
-    const response = await fetch(url, { method: 'HEAD' });
-    
-    const size = response.headers.get('content-length');
-    const type = response.headers.get('content-type');
-    
-    return {
-      size: size ? parseInt(size, 10) : undefined,
-      type: type || undefined,
-    };
-  } catch {
-    return {};
   }
 }

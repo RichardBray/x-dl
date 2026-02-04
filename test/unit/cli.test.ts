@@ -35,7 +35,7 @@ describe('CLI Commands', () => {
       });
 
       const stdout = await new Response(process.stdout).text();
-      const stderr = await new Response(process.stderr).text();
+      const _stderr = await new Response(process.stderr).text();
       const exitCode = await process.exited;
 
       // Should exit successfully
@@ -73,7 +73,7 @@ describe('CLI Commands', () => {
 
       const stdout = await new Response(process.stdout).text();
       const stderr = await new Response(process.stderr).text();
-      const exitCode = await process.exited;
+      const _exitCode = await process.exited;
 
       // Should display help or error message when no arguments provided
       expect(stdout.length + stderr.length).toBeGreaterThan(0);
