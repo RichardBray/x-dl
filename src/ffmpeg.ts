@@ -78,7 +78,7 @@ export async function downloadHlsWithFfmpeg(options: DownloadHlsOptions): Promis
             clearInterval(pollInterval);
             clearTimeout(timeoutHandle);
             rejected = true;
-            ffmpeg.kill('SIGKILL');
+            ffmpeg.kill();
             reject(new Error(`FFMPEG stuck: no progress for ${noProgressTimeoutMs / 1000} seconds`));
           }
         }
@@ -86,7 +86,7 @@ export async function downloadHlsWithFfmpeg(options: DownloadHlsOptions): Promis
           clearInterval(pollInterval);
           clearTimeout(timeoutHandle);
           rejected = true;
-          ffmpeg.kill('SIGKILL');
+          ffmpeg.kill();
           reject(new Error(`FFMPEG stuck: no progress for ${noProgressTimeoutMs / 1000} seconds`));
         }
       } catch (_err) {
@@ -96,7 +96,7 @@ export async function downloadHlsWithFfmpeg(options: DownloadHlsOptions): Promis
     const timeoutHandle = setTimeout(() => {
       clearInterval(pollInterval);
       rejected = true;
-      ffmpeg.kill('SIGKILL');
+      ffmpeg.kill();
       reject(new Error(`FFMPEG download timed out after ${timeoutMs / 1000} seconds`));
     }, timeoutMs);
 
