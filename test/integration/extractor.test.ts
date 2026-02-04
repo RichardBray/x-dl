@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'bun:test';
 import { VideoExtractor } from '../../src/extractor.ts';
-import { MOCK_TWEETS, getMockPageHtml, withTimeout, createTempDir } from '../test-utils.ts';
+import { withTimeout } from '../test-utils.ts';
 
 describe.skip('VideoExtractor Integration Tests', () => {
   let mockServer: any;

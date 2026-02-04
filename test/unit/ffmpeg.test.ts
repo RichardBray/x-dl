@@ -55,7 +55,7 @@ describe('FFMPEG Download with Polling', () => {
         playlistUrl: 'https://example.com/test.m3u8',
         outputPath,
       });
-    } catch (error) {
+    } catch (_error) {
       expect(await fs.exists(outputPath)).toBe(false);
     }
   });

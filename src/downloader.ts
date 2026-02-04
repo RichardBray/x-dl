@@ -1,4 +1,4 @@
-import { DownloadOptions, VideoUrl } from './types.ts';
+import { DownloadOptions } from './types.ts';
 import { formatBytes, formatTime } from './utils.ts';
 
 export async function downloadVideo(options: DownloadOptions): Promise<string> {

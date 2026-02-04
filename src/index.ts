@@ -2,11 +2,10 @@
 
 import os from 'node:os';
 import path from 'node:path';
-import fs from 'node:fs';
 
 import { VideoExtractor } from './extractor.ts';
 import { downloadVideo } from './downloader.ts';
-import { ensurePlaywrightReady, runInstall, InstallOptions } from './installer.ts';
+import { ensurePlaywrightReady, runInstall } from './installer.ts';
 import { generateFilename, isValidTwitterUrl, parseTweetUrl, formatBytes } from './utils.ts';
 import { downloadHlsWithFfmpeg } from './ffmpeg.ts';
 

@@ -36,7 +36,7 @@ export const MOCK_TWEETS = {
   },
 };
 
-export function getMockPageHtml(tweetKey: keyof typeof MOCK_TWEETS): string {
+export function getMockPageHtml(_tweetKey: keyof typeof MOCK_TWEETS): string {
   const mockPagePath = import.meta.dir + '/mock-x-page.html';
   try {
     const file = Bun.file(mockPagePath);

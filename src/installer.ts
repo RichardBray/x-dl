@@ -264,7 +264,7 @@ async function attemptFfmpegInstall(): Promise<boolean> {
         });
         console.log('\u2705 ffmpeg installed via Homebrew');
         return true;
-      } catch (error) {
+      } catch (_error) {
         console.error('\u274c Failed to install ffmpeg via Homebrew');
         return false;
       }
@@ -299,7 +299,7 @@ async function attemptFfmpegInstall(): Promise<boolean> {
           });
           console.log(`\u2705 ffmpeg installed via ${pm.cmd}`);
           return true;
-        } catch (error) {
+        } catch (_error) {
           console.error(`\u274c Failed to install ffmpeg via ${pm.cmd}`);
           continue;
         }
@@ -324,7 +324,7 @@ async function attemptFfmpegInstall(): Promise<boolean> {
         });
         console.log('\u2705 ffmpeg installed via winget');
         return true;
-      } catch (error) {
+      } catch (_error) {
         console.error('\u274c Failed to install ffmpeg via winget');
         return false;
       }

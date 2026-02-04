@@ -24,7 +24,6 @@ export async function downloadHlsWithFfmpeg(options: DownloadHlsOptions): Promis
   console.log('📥 Downloading HLS video via ffmpeg...');
 
   const fs = await import('node:fs');
-  const path = await import('node:path');
 
   if (fs.existsSync(outputPath)) {
     console.log(`⚠️  File already exists, removing: ${outputPath}`);
@@ -82,7 +81,7 @@ export async function downloadHlsWithFfmpeg(options: DownloadHlsOptions): Promis
             reject(new Error(`FFMPEG stuck: no progress for ${noProgressTimeoutMs / 1000} seconds`));
           }
         }
-      } catch (err) {
+      } catch (_err) {
       }
     }, 2000);
 
