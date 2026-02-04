@@ -104,7 +104,7 @@ export async function downloadHlsWithFfmpeg(options: DownloadHlsOptions): Promis
       clearInterval(pollInterval);
       clearTimeout(timeoutHandle);
 
-      if (code === 0) {
+      if (code === 0 && !rejected) {
         process.stdout.write('\r✅ HLS download completed\n');
         resolve(outputPath);
       } else if (!rejected) {
