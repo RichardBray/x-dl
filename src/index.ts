@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import { VideoExtractor } from './extractor.ts';
 import { downloadVideo } from './downloader.ts';
 import { ensurePlaywrightReady, runInstall, InstallOptions } from './installer.ts';
-import { generateFilename, isValidTwitterUrl, parseTweetUrl } from './utils.ts';
+import { generateFilename, isValidTwitterUrl, parseTweetUrl, formatBytes } from './utils.ts';
 import { downloadHlsWithFfmpeg } from './ffmpeg.ts';
 
 interface CliOptions {
@@ -471,14 +471,6 @@ async function main(): Promise<void> {
     console.error(`\n\n❌ Download failed: ${message}\n`);
     process.exit(1);
   }
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 B';
-  const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
 main().catch((error) => {
