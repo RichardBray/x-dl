@@ -128,19 +128,6 @@ export function hasVideo(html: string): boolean {
   return videoIndicators.some(indicator => html.includes(indicator));
 }
 
-export function extractVideoUrlsFromHtml(html: string): string[] {
-  const urls: string[] = [];
-  
-  const videoSrcRegex = /https?:\/\/video\.twimg\.com\/[^\s"'<>]+/gi;
-  const matches = html.match(videoSrcRegex);
-  
-  if (matches) {
-    urls.push(...matches);
-  }
-
-  return [...new Set(urls)];
-}
-
 export function selectBestMp4(videos: Array<{url: string; format: VideoUrl['format']}>): string | null {
   const mp4Videos = videos.filter(v => v.format === 'mp4');
   
