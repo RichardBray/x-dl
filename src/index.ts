@@ -78,7 +78,18 @@ function parseArgs(args: string[]): CliOptions {
         }
         break;
       case '--timeout':
-        options.timeout = parseInt(nextArg, 10) * 1000;
+        if (!nextArg || nextArg.startsWith('-')) {
+          console.error('❌ Error: --timeout requires a numeric value (e.g., --timeout 30)');
+          console.error('Usage: x-dl --timeout <seconds> <url>');
+          process.exit(1);
+        }
+        const timeoutSeconds = parseInt(nextArg, 10);
+        if (isNaN(timeoutSeconds) || timeoutSeconds <= 0) {
+          console.error('❌ Error: --timeout must be a positive number');
+          console.error(`Invalid value: ${nextArg}`);
+          process.exit(1);
+        }
+        options.timeout = timeoutSeconds * 1000;
         i++;
         break;
       case '--headed':
