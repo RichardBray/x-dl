@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+VERSION="${VERSION:-latest}"
+
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -83,9 +85,15 @@ detect_shell() {
 download_binary() {
     local install_dir="$HOME/.local/bin"
     local binary_path="$install_dir/x-dl"
-    local download_url="https://github.com/RichardBray/x-dl/releases/latest/download/$BINARY"
-
-    log_info "Downloading binary from GitHub releases..."
+    local download_url
+    
+    if [[ "$VERSION" == "latest" ]]; then
+        download_url="https://github.com/RichardBray/x-dl/releases/latest/download/$BINARY"
+    else
+        download_url="https://github.com/RichardBray/x-dl/releases/download/$VERSION/$BINARY"
+    fi
+    
+    log_info "Downloading binary from GitHub releases (version: $VERSION)..."
 
     if ! curl -fsSL "$download_url" -o "$binary_path"; then
         log_error "Failed to download binary from $download_url" 2
@@ -95,9 +103,15 @@ download_binary() {
 }
 
 download_checksums() {
-    local checksums_url="https://github.com/RichardBray/x-dl/releases/latest/download/checksums.txt"
-
-    log_info "Downloading checksums for verification..."
+    local checksums_url
+    
+    if [[ "$VERSION" == "latest" ]]; then
+        checksums_url="https://github.com/RichardBray/x-dl/releases/latest/download/checksums.txt"
+    else
+        checksums_url="https://github.com/RichardBray/x-dl/releases/download/$VERSION/checksums.txt"
+    fi
+    
+    log_info "Downloading checksums for verification (version: $VERSION)..."
 
     CHECKSUMS=$(curl -fsSL "$checksums_url" 2>/dev/null || echo "")
 
