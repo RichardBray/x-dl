@@ -19,3 +19,6 @@ test-results/
 .env
 .env.*
 *.log
+
+# OpenCode
+.opencode/
