@@ -19,7 +19,7 @@ function which(cmd: string): string | null {
 
   const { spawnSync } = require('node:child_process');
   try {
-    const result = spawnSync('which', [cmd], { stdio: 'pipe' });
+    const result = spawnSync('which', [cmd], { stdio: ['ignore', 'pipe', 'pipe'] });
     return result.status === 0 ? result.stdout.toString().trim() : null;
   } catch {
     return null;
@@ -28,9 +28,13 @@ function which(cmd: string): string | null {
 
 async function run(cmd: string[], opts?: { sudo?: boolean }): Promise<{ code: number }> {
   const fullCmd = opts?.sudo ? ['sudo', ...cmd] : cmd;
-  const proc = Bun.spawn(fullCmd, { stdio: 'inherit' });
-  const code = await proc.exited;
-  return { code };
+  const { spawnSync } = require('node:child_process');
+  
+  const result = spawnSync(fullCmd[0], fullCmd.slice(1), {
+    stdio: 'inherit'
+  });
+  
+  return { code: result.status ?? 1 };
 }
 
 function getPlatform(): 'macos' | 'linux' | 'other' {
@@ -54,29 +58,18 @@ async function isPlaywrightChromiumReady(): Promise<boolean> {
 async function installPlaywrightChromium(): Promise<void> {
   console.log('\ud83d\udd0d Installing Playwright Chromium...');
 
-  try {
-    const mod = await import('playwright/lib/install');
-    if (typeof mod.installBrowsersForNpmInstall === 'function') {
-      await mod.installBrowsersForNpmInstall(['chromium']);
-    } else if (typeof (mod as any).install === 'function') {
-      await (mod as any).install(['chromium']);
-    } else {
-      throw new Error('Programmatic install not available');
-    }
-  } catch {
-    const bunxPath = which('bunx');
-    const npxPath = which('npx');
+  const bunxPath = which('bunx');
+  const npxPath = which('npx');
 
-    if (bunxPath) {
-      await run([bunxPath, 'playwright', 'install', 'chromium']);
-    } else if (npxPath) {
-      await run([npxPath, 'playwright', 'install', 'chromium']);
-    } else {
-      throw new Error(
-        'Could not install Playwright Chromium automatically. Please install manually:\n' +
-        '  bunx playwright install chromium'
-      );
-    }
+  if (bunxPath) {
+    await run([bunxPath, 'playwright', 'install', 'chromium']);
+  } else if (npxPath) {
+    await run([npxPath, 'playwright', 'install', 'chromium']);
+  } else {
+    throw new Error(
+      'Could not install Playwright Chromium automatically. Please install manually:\n' +
+      '  bunx playwright install chromium'
+    );
   }
 
   const ready = await isPlaywrightChromiumReady();
