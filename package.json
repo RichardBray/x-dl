@@ -30,5 +30,7 @@
   "dependencies": {
     "playwright": "^1.57.0"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "@types/node": "^25.2.1"
+  }
 }
