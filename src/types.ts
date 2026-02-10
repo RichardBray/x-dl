@@ -51,3 +51,5 @@ export interface TweetInfo {
   author: string;
   url: string;
 }
+
+export type ArticleStep = 'extracting' | 'extracting_audio' | 'transcribing' | 'generating' | 'done' | 'error';

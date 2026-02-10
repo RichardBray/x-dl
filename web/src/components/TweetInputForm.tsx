@@ -3,9 +3,11 @@ import { useState, type FormEvent } from 'react';
 interface Props {
   onSubmit: (url: string) => void;
   isLoading: boolean;
+  placeholder?: string;
+  buttonText?: string;
 }
 
-export function TweetInputForm({ onSubmit, isLoading }: Props) {
+export function TweetInputForm({ onSubmit, isLoading, placeholder, buttonText }: Props) {
   const [url, setUrl] = useState('');
 
   const handleSubmit = (e: FormEvent) => {
@@ -21,12 +23,12 @@ export function TweetInputForm({ onSubmit, isLoading }: Props) {
         type="url"
         value={url}
         onChange={(e) => setUrl(e.target.value)}
-        placeholder="Paste a Twitter/X video URL..."
+        placeholder={placeholder || "Paste a Twitter/X video URL..."}
         disabled={isLoading}
         required
       />
       <button type="submit" disabled={isLoading || !url.trim()}>
-        {isLoading ? 'Extracting...' : 'Extract Video'}
+        {isLoading ? 'Processing...' : (buttonText || 'Extract Video')}
       </button>
     </form>
   );

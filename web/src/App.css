@@ -6,6 +6,50 @@
   width: 100%;
 }
 
+/* ── Nav ── */
+.nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.nav-brand {
+  font-size: 1.2rem;
+  font-weight: 800;
+  background: linear-gradient(135deg, var(--accent), #6366f1);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.nav-links {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.nav-link {
+  padding: 0.4rem 0.85rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-decoration: none;
+  border-radius: 6px;
+  transition: color 0.2s, background 0.2s;
+}
+
+.nav-link:hover {
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+}
+
+.nav-link.active {
+  color: var(--accent);
+  background: var(--loading-bg);
+}
+
 /* ── Header ── */
 header {
   text-align: center;
@@ -194,6 +238,142 @@ header h1 {
 
 .download-btn:active {
   transform: translateY(0);
+}
+
+/* ── Progress Steps ── */
+.progress-steps {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 1.5rem;
+  padding: 1.25rem 1rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  animation: slideIn 0.25s ease-out;
+}
+
+.progress-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+}
+
+.step-indicator {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border: 2px solid var(--border);
+  color: var(--text-secondary);
+  transition: all 0.3s;
+}
+
+.step-label {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  text-align: center;
+  transition: color 0.3s;
+}
+
+.progress-step.active .step-indicator {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--loading-bg);
+  animation: pulse 1.5s infinite;
+}
+
+.progress-step.active .step-label {
+  color: var(--accent);
+}
+
+.progress-step.complete .step-indicator {
+  border-color: var(--success);
+  color: var(--success);
+  background: var(--success-bg);
+}
+
+.progress-step.complete .step-label {
+  color: var(--success);
+}
+
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(29, 155, 240, 0.3); }
+  50% { box-shadow: 0 0 0 6px rgba(29, 155, 240, 0); }
+}
+
+/* ── Article Display ── */
+.article-display {
+  margin-top: 1.5rem;
+  padding: 1.5rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  animation: slideIn 0.3s ease-out;
+}
+
+.article-content {
+  line-height: 1.7;
+  color: var(--text-primary);
+  font-size: 0.92rem;
+}
+
+.article-content h1 {
+  font-size: 1.5rem;
+  margin: 0 0 1rem;
+  font-weight: 700;
+}
+
+.article-content h2 {
+  font-size: 1.2rem;
+  margin: 1.5rem 0 0.75rem;
+  font-weight: 600;
+}
+
+.article-content h3 {
+  font-size: 1.05rem;
+  margin: 1.25rem 0 0.5rem;
+  font-weight: 600;
+}
+
+.article-content p {
+  margin: 0.75rem 0;
+}
+
+.article-content strong {
+  color: #fff;
+}
+
+.article-content blockquote {
+  border-left: 3px solid var(--accent);
+  padding-left: 1rem;
+  margin: 1rem 0;
+  color: var(--text-secondary);
+}
+
+.article-content li {
+  margin-left: 1.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.article-content a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.article-content a:hover {
+  text-decoration: underline;
+}
+
+.article-content hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 1.5rem 0;
 }
 
 /* ── Responsive ── */
