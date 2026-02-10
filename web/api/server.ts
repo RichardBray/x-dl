@@ -23,6 +23,7 @@ if (!process.env.ANTHROPIC_API_KEY) {
 
 Bun.serve({
   port: PORT,
+  idleTimeout: 120,
   async fetch(req) {
     const url = new URL(req.url);
 
