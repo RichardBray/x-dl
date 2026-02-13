@@ -22,3 +22,6 @@ test-results/
 
 # OpenCode
 .opencode/
+
+# Docs
+docs/

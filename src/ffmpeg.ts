@@ -79,6 +79,7 @@ export async function downloadHlsWithFfmpeg(options: DownloadHlsOptions): Promis
             clearTimeout(timeoutHandle);
             rejected = true;
             ffmpeg.kill();
+            process.stdout.write('\r\x1b[K');
             reject(new Error(`FFMPEG stuck: no progress for ${noProgressTimeoutMs / 1000} seconds`));
           }
         }
@@ -87,6 +88,7 @@ export async function downloadHlsWithFfmpeg(options: DownloadHlsOptions): Promis
           clearTimeout(timeoutHandle);
           rejected = true;
           ffmpeg.kill();
+          process.stdout.write('\r\x1b[K');
           reject(new Error(`FFMPEG stuck: no progress for ${noProgressTimeoutMs / 1000} seconds`));
         }
       } catch (_err) {
@@ -97,6 +99,7 @@ export async function downloadHlsWithFfmpeg(options: DownloadHlsOptions): Promis
       clearInterval(pollInterval);
       rejected = true;
       ffmpeg.kill();
+      process.stdout.write('\r\x1b[K');
       reject(new Error(`FFMPEG download timed out after ${timeoutMs / 1000} seconds`));
     }, timeoutMs);
 
@@ -108,6 +111,7 @@ export async function downloadHlsWithFfmpeg(options: DownloadHlsOptions): Promis
         process.stdout.write('\r✅ HLS download completed\n');
         resolve(outputPath);
       } else if (!rejected) {
+        process.stdout.write('\r\x1b[K');
         const error = stderr.trim() || `ffmpeg exited with code ${code ?? 'null (signal)'}`;
         reject(new Error(`Failed to download HLS: ${error}`));
       }
@@ -118,6 +122,7 @@ export async function downloadHlsWithFfmpeg(options: DownloadHlsOptions): Promis
       clearTimeout(timeoutHandle);
       if (!rejected) {
         rejected = true;
+        process.stdout.write('\r\x1b[K');
         reject(new Error(`Failed to start ffmpeg: ${err.message}`));
       }
     });
