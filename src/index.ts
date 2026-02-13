@@ -449,7 +449,8 @@ async function main(): Promise<void> {
       console.log(`\n✅ Video saved to: ${outputPath}\n`);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      console.error(`\n\n❌ HLS download failed: ${message}\n`);
+      process.stdout.write('\r\x1b[K');
+      console.error(`❌ HLS download failed: ${message}\n`);
       process.exit(1);
     }
     return;
@@ -478,7 +479,8 @@ async function main(): Promise<void> {
       process.exit(0);
     }
 
-    console.error(`\n\n❌ Download failed: ${message}\n`);
+    process.stdout.write('\r\x1b[K');
+    console.error(`❌ Download failed: ${message}\n`);
     process.exit(1);
   }
 }

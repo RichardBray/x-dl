@@ -31,23 +31,27 @@ export async function downloadVideo(options: DownloadOptions): Promise<string> {
     const chunks: Uint8Array[] = [];
     let downloaded = 0;
     let lastProgressUpdate = 0;
-    
-    while (true) {
-      const { done, value } = await reader.read();
-      
-      if (done) break;
-      
-      chunks.push(value);
-      downloaded += value.length;
-      
-      if (onProgress && total > 0) {
-        const now = Date.now();
-        if (now - lastProgressUpdate > 500 || downloaded === total) {
-          const progress = (downloaded / total) * 100;
-          onProgress(progress, downloaded, total);
-          lastProgressUpdate = now;
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+
+        if (done) break;
+
+        chunks.push(value);
+        downloaded += value.length;
+
+        if (onProgress && total > 0) {
+          const now = Date.now();
+          if (now - lastProgressUpdate > 500 || downloaded === total) {
+            const progress = (downloaded / total) * 100;
+            onProgress(progress, downloaded, total);
+            lastProgressUpdate = now;
+          }
         }
       }
+    } finally {
+      reader.cancel().catch(() => {});
     }
     
     const blob = new Blob(chunks);
