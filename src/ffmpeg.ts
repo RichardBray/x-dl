@@ -60,10 +60,12 @@ export async function downloadHlsWithFfmpeg(options: DownloadHlsOptions): Promis
     const spinnerChars = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
     let spinnerIndex = 0;
 
-    const pollInterval = setInterval(() => {
+    const spinnerInterval = setInterval(() => {
       process.stdout.write(`\r${spinnerChars[spinnerIndex]} Downloading HLS...`);
       spinnerIndex = (spinnerIndex + 1) % spinnerChars.length;
+    }, 80);
 
+    const pollInterval = setInterval(() => {
       try {
         const now = Date.now();
 
@@ -75,6 +77,7 @@ export async function downloadHlsWithFfmpeg(options: DownloadHlsOptions): Promis
             lastProgressTime = now;
           }
           else if (now - lastProgressTime > noProgressTimeoutMs) {
+            clearInterval(spinnerInterval);
             clearInterval(pollInterval);
             clearTimeout(timeoutHandle);
             rejected = true;
@@ -84,6 +87,7 @@ export async function downloadHlsWithFfmpeg(options: DownloadHlsOptions): Promis
           }
         }
         else if (now - lastProgressTime > noProgressTimeoutMs) {
+          clearInterval(spinnerInterval);
           clearInterval(pollInterval);
           clearTimeout(timeoutHandle);
           rejected = true;
@@ -96,6 +100,7 @@ export async function downloadHlsWithFfmpeg(options: DownloadHlsOptions): Promis
     }, 2000);
 
     const timeoutHandle = setTimeout(() => {
+      clearInterval(spinnerInterval);
       clearInterval(pollInterval);
       rejected = true;
       ffmpeg.kill();
@@ -104,6 +109,7 @@ export async function downloadHlsWithFfmpeg(options: DownloadHlsOptions): Promis
     }, timeoutMs);
 
     ffmpeg.on('close', (code) => {
+      clearInterval(spinnerInterval);
       clearInterval(pollInterval);
       clearTimeout(timeoutHandle);
 
@@ -118,6 +124,7 @@ export async function downloadHlsWithFfmpeg(options: DownloadHlsOptions): Promis
     });
 
     ffmpeg.on('error', (err) => {
+      clearInterval(spinnerInterval);
       clearInterval(pollInterval);
       clearTimeout(timeoutHandle);
       if (!rejected) {
