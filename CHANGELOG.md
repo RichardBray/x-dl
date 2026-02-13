@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.3] - 2026-02-13
+
+### Fixed
+- Spinner/progress indicator hanging on error paths during download
+- Spinner animation not visually spinning (was updating every 2s, now 80ms)
+- Stream reader not released on mid-download errors
+
+### Added
+- End-to-end download tests (`test/e2e/download.sh`)
+- CLAUDE.md project guide
+
 ## [0.4.2] - 2026-02-20
 
 ### Added

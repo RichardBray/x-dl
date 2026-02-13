@@ -225,7 +225,7 @@ EXAMPLES:
 }
 
 function showVersion(): void {
-  console.log('0.4.2');
+  console.log('0.4.3');
   process.exit(0);
 }
 
