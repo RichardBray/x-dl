@@ -158,6 +158,8 @@ x-dl install --with-deps
 | `--headed` | Show browser window for debugging |
 | `--profile [dir]` | Use a persistent browser profile for authenticated extraction (default: `~/.x-dl-profile`) |
 | `--login` | Open X in a persistent profile and wait for you to log in |
+| `--from <MM:SS>` | Clip start time in minutes and seconds (e.g. `00:30`) |
+| `--to <MM:SS>` | Clip end time in minutes and seconds (e.g. `01:30`) |
 | `--help, -h` | Show help message |
 
 **Note:** The `-o` option accepts any file extension. If you specify a path with an extension (e.g., `video.mp4`, `video.webm`), that format will be used. Otherwise, the format is auto-detected from the extracted video.
@@ -197,6 +199,17 @@ x-dl --profile ~/.x-dl-profile https://x.com/user/status/123456
 ```bash
 x-dl --timeout 60 https://x.com/user/status/123456
 ```
+
+**Clip a video to a specific time range:**
+```bash
+# Download only the 30s–90s portion of a video
+x-dl --from 00:30 --to 01:30 https://x.com/user/status/123456
+
+# Download from 1 minute to the end
+x-dl --from 01:00 https://x.com/user/status/123456
+```
+
+Clipped files are saved with a `_clip` suffix, e.g. `username_123456_clip.mp4`. Both `--from` and `--to` are optional — omitting `--from` starts from the beginning, omitting `--to` runs to the end.
 
 ## Output
 
