@@ -463,6 +463,16 @@ async function main(): Promise<void> {
 
   const basePath = getOutputPath(args.url, args, defaultExtension);
   const isClipping = args.clipFrom || args.clipTo;
+
+  if (args.clipFrom && args.clipTo) {
+    const fromSecs = mmssToSeconds(args.clipFrom);
+    const toSecs = mmssToSeconds(args.clipTo);
+    if (toSecs <= fromSecs) {
+      console.error('❌ Error: --to must be after --from');
+      process.exit(1);
+    }
+  }
+
   const outputPath = isClipping
     ? path.join(path.dirname(basePath), `${path.basename(basePath, path.extname(basePath))}_clip${path.extname(basePath)}`)
     : basePath;
