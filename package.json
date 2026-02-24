@@ -1,6 +1,6 @@
 {
   "name": "x-dl",
-  "version": "0.4.3",
+  "version": "0.4.4",
   "description": "Extract videos from X/Twitter tweets",
   "main": "./src/index.ts",
   "type": "module",
@@ -24,7 +24,12 @@
     "release:major": "bun version major && git push && git push --tags",
     "version:tags": "git tag -l --sort=-version:refname"
   },
-  "keywords": ["twitter", "x", "video", "extractor"],
+  "keywords": [
+    "twitter",
+    "x",
+    "video",
+    "extractor"
+  ],
   "author": "",
   "license": "MIT",
   "dependencies": {
