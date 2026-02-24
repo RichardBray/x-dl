@@ -4,8 +4,8 @@ export interface DownloadHlsOptions {
   playlistUrl: string;
   outputPath: string;
   timeout?: number;
-  clipFrom?: string;
-  clipTo?: string;
+  clipFromSecs?: number;
+  clipDurationSecs?: number;
 }
 
 export interface FfmpegCapabilities {
@@ -21,7 +21,7 @@ export interface FfmpegCapabilityCheckResult extends FfmpegCapabilities {
 }
 
 export async function downloadHlsWithFfmpeg(options: DownloadHlsOptions): Promise<string> {
-  const { playlistUrl, outputPath, timeout, clipFrom, clipTo } = options;
+  const { playlistUrl, outputPath, timeout, clipFromSecs, clipDurationSecs } = options;
 
   console.log('📥 Downloading HLS video via ffmpeg...');
 
@@ -39,15 +39,18 @@ export async function downloadHlsWithFfmpeg(options: DownloadHlsOptions): Promis
   let rejected = false;
 
   return new Promise((resolve, reject) => {
+    const isClipping = clipFromSecs !== undefined || clipDurationSecs !== undefined;
     const args = [
       '-y',
       '-hide_banner',
       '-loglevel', 'error',
-      ...(clipFrom ? ['-ss', clipFrom] : []),
       '-i', playlistUrl,
-      ...(clipTo ? ['-to', clipTo] : []),
-      '-c', 'copy',
-      '-bsf:a', 'aac_adtstoasc',
+      // Use -ss after -i (slow/accurate seek) — fast seek on HLS produces empty output
+      ...(clipFromSecs !== undefined ? ['-ss', String(clipFromSecs)] : []),
+      ...(clipDurationSecs !== undefined ? ['-t', String(clipDurationSecs)] : []),
+      ...(isClipping
+        ? ['-c:v', 'libx264', '-c:a', 'aac', '-movflags', '+faststart']
+        : ['-c', 'copy', '-bsf:a', 'aac_adtstoasc']),
       outputPath,
     ];
 
@@ -136,6 +139,69 @@ export async function downloadHlsWithFfmpeg(options: DownloadHlsOptions): Promis
         process.stdout.write('\r\x1b[K');
         reject(new Error(`Failed to start ffmpeg: ${err.message}`));
       }
+    });
+  });
+}
+
+export interface ClipLocalFileOptions {
+  inputPath: string;
+  outputPath: string;
+  clipFrom?: string;
+  clipTo?: string;
+}
+
+export function mmssToSeconds(mmss: string): number {
+  const [mm, ss] = mmss.split(':').map(Number);
+  return mm * 60 + ss;
+}
+
+export async function clipLocalFile(options: ClipLocalFileOptions): Promise<void> {
+  const { inputPath, outputPath, clipFrom, clipTo } = options;
+
+  const startSecs = clipFrom ? mmssToSeconds(clipFrom) : 0;
+  const duration = clipTo ? mmssToSeconds(clipTo) - startSecs : undefined;
+
+  return new Promise((resolve, reject) => {
+    const args = [
+      '-y',
+      '-hide_banner',
+      '-loglevel', 'error',
+      ...(clipFrom ? ['-ss', String(startSecs)] : []),
+      '-i', inputPath,
+      ...(duration !== undefined ? ['-t', String(duration)] : []),
+      '-c:v', 'libx264', '-c:a', 'aac', '-movflags', '+faststart',
+      outputPath,
+    ];
+
+    const ffmpeg = spawn('ffmpeg', args);
+    let stderr = '';
+
+    if (ffmpeg.stderr) {
+      ffmpeg.stderr.on('data', (data: Buffer) => { stderr += data.toString(); });
+    }
+
+    const spinnerChars = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+    let spinnerIndex = 0;
+    const spinnerInterval = setInterval(() => {
+      process.stdout.write(`\r${spinnerChars[spinnerIndex]} Clipping...`);
+      spinnerIndex = (spinnerIndex + 1) % spinnerChars.length;
+    }, 80);
+
+    ffmpeg.on('close', (code: number | null) => {
+      clearInterval(spinnerInterval);
+      if (code === 0) {
+        process.stdout.write('\r✅ Clip complete\n');
+        resolve();
+      } else {
+        process.stdout.write('\r\x1b[K');
+        reject(new Error(stderr.trim() || `ffmpeg exited with code ${code ?? 'null (signal)'}`));
+      }
+    });
+
+    ffmpeg.on('error', (err: Error) => {
+      clearInterval(spinnerInterval);
+      process.stdout.write('\r\x1b[K');
+      reject(new Error(`Failed to start ffmpeg: ${err.message}`));
     });
   });
 }
@@ -237,7 +303,7 @@ export async function downloadMp4WithFfmpeg(options: DownloadMp4Options): Promis
       ...(clipFrom ? ['-ss', clipFrom] : []),
       '-i', videoUrl,
       ...(clipTo ? ['-to', clipTo] : []),
-      '-c', 'copy',
+      '-c:v', 'libx264', '-c:a', 'aac', '-movflags', '+faststart',
       outputPath,
     ];
 

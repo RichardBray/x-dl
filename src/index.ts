@@ -7,7 +7,7 @@ import { VideoExtractor } from './extractor.ts';
 import { downloadVideo } from './downloader.ts';
 import { ensurePlaywrightReady, runInstall } from './installer.ts';
 import { generateFilename, isValidTwitterUrl, parseTweetUrl, formatBytes } from './utils.ts';
-import { downloadHlsWithFfmpeg, downloadMp4WithFfmpeg } from './ffmpeg.ts';
+import { downloadHlsWithFfmpeg, clipLocalFile, mmssToSeconds } from './ffmpeg.ts';
 
 interface CliOptions {
   url?: string;
@@ -126,11 +126,11 @@ function parseArgs(args: string[]): CliOptions {
         break;
       case '--from':
         if (!nextArg || nextArg.startsWith('-')) {
-          console.error('❌ Error: --from requires a time value (e.g., --from 00:00:30)');
+          console.error('❌ Error: --from requires a time value (e.g., --from 00:30)');
           process.exit(1);
         }
-        if (!/^\d{2}:\d{2}:\d{2}$/.test(nextArg)) {
-          console.error(`❌ Error: --from must be in HH:MM:SS format (got: ${nextArg})`);
+        if (!/^\d{2}:\d{2}$/.test(nextArg)) {
+          console.error(`❌ Error: --from must be in MM:SS format (got: ${nextArg})`);
           process.exit(1);
         }
         options.clipFrom = nextArg;
@@ -138,11 +138,11 @@ function parseArgs(args: string[]): CliOptions {
         break;
       case '--to':
         if (!nextArg || nextArg.startsWith('-')) {
-          console.error('❌ Error: --to requires a time value (e.g., --to 00:01:30)');
+          console.error('❌ Error: --to requires a time value (e.g., --to 01:30)');
           process.exit(1);
         }
-        if (!/^\d{2}:\d{2}:\d{2}$/.test(nextArg)) {
-          console.error(`❌ Error: --to must be in HH:MM:SS format (got: ${nextArg})`);
+        if (!/^\d{2}:\d{2}$/.test(nextArg)) {
+          console.error(`❌ Error: --to must be in MM:SS format (got: ${nextArg})`);
           process.exit(1);
         }
         options.clipTo = nextArg;
@@ -194,8 +194,8 @@ OPTIONS:
   --browser-channel <channel>       Browser channel: chrome, chromium, or msedge (default: chromium)
   --browser-executable-path <path>  Path to browser executable (optional, overrides channel)
   --verify-auth                     Check authentication status (EXPERIMENTAL ALPHA)
-  --from <HH:MM:SS>                 Clip start time (e.g., 00:00:30)
-  --to <HH:MM:SS>                   Clip end time (e.g., 00:01:30)
+  --from <MM:SS>                    Clip start time (e.g., 00:30)
+  --to <MM:SS>                      Clip end time (e.g., 01:30)
   --version, -v                     Show version information
   --help, -h                        Show this help message
 
@@ -222,10 +222,10 @@ BROWSER EXAMPLES:
 
 CLIP EXAMPLES:
   # Download only 30s–90s of a video
-  ${commandName} --from 00:00:30 --to 00:01:30 https://x.com/user/status/123
+  ${commandName} --from 00:30 --to 01:30 https://x.com/user/status/123
 
   # Download from 1 minute to end
-  ${commandName} --from 00:01:00 https://x.com/user/status/123
+  ${commandName} --from 01:00 https://x.com/user/status/123
   `);
 }
 
@@ -260,7 +260,8 @@ EXAMPLES:
 }
 
 function showVersion(): void {
-  console.log('0.4.3');
+  const pkg = require('../package.json');
+  console.log(pkg.version);
   process.exit(0);
 }
 
@@ -460,7 +461,11 @@ async function main(): Promise<void> {
     defaultExtension = result.videoUrl.format;
   }
 
-  const outputPath = getOutputPath(args.url, args, defaultExtension);
+  const basePath = getOutputPath(args.url, args, defaultExtension);
+  const isClipping = args.clipFrom || args.clipTo;
+  const outputPath = isClipping
+    ? path.join(path.dirname(basePath), `${path.basename(basePath, path.extname(basePath))}_clip${path.extname(basePath)}`)
+    : basePath;
 
   if (result.videoUrl.format === 'm3u8') {
     const { ensureFfmpegReady } = await import('./installer.ts');
@@ -477,11 +482,15 @@ async function main(): Promise<void> {
     }
 
     try {
+      const fromSecs = args.clipFrom ? mmssToSeconds(args.clipFrom) : undefined;
+      const toSecs = args.clipTo ? mmssToSeconds(args.clipTo) : undefined;
+      const durationSecs = toSecs !== undefined ? toSecs - (fromSecs ?? 0) : undefined;
+
       await downloadHlsWithFfmpeg({
         playlistUrl: result.videoUrl.url,
         outputPath,
-        clipFrom: args.clipFrom,
-        clipTo: args.clipTo,
+        clipFromSecs: fromSecs,
+        clipDurationSecs: durationSecs,
       });
       console.log(`\n✅ Video saved to: ${outputPath}\n`);
     } catch (error) {
@@ -492,8 +501,6 @@ async function main(): Promise<void> {
     }
     return;
   }
-
-  const isClipping = args.clipFrom || args.clipTo;
 
   if (isClipping) {
     const { ensureFfmpegReady: ensureFfmpegReadyForClip } = await import('./installer.ts');
@@ -506,19 +513,39 @@ async function main(): Promise<void> {
       process.exit(1);
     }
 
+    // Download the full video first, then clip locally.
+    // ffmpeg can't access X/Twitter direct MP4 URLs (auth headers required).
+    const os = await import('node:os');
+    const fs = await import('node:fs');
+    const tmpPath = path.join(os.tmpdir(), `x-dl-tmp-${Date.now()}.mp4`);
+
     try {
-      await downloadMp4WithFfmpeg({
-        videoUrl: result.videoUrl.url,
+      await downloadVideo({
+        url: result.videoUrl.url,
+        outputPath: tmpPath,
+        onProgress: (progress, downloaded, total) => {
+          process.stdout.write(
+            `\r⏳ Downloading: ${progress.toFixed(1)}% (${formatBytes(downloaded)}/${formatBytes(total)})`
+          );
+        },
+      });
+      process.stdout.write('\n');
+
+      await clipLocalFile({
+        inputPath: tmpPath,
         outputPath,
         clipFrom: args.clipFrom,
         clipTo: args.clipTo,
       });
+
       console.log(`\n✅ Video saved to: ${outputPath}\n`);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       process.stdout.write('\r\x1b[K');
-      console.error(`❌ Download failed: ${message}\n`);
+      console.error(`❌ Failed: ${message}\n`);
       process.exit(1);
+    } finally {
+      if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath);
     }
     return;
   }
