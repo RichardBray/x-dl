@@ -7,7 +7,7 @@ import { VideoExtractor } from './extractor.ts';
 import { downloadVideo } from './downloader.ts';
 import { ensurePlaywrightReady, runInstall } from './installer.ts';
 import { generateFilename, isValidTwitterUrl, parseTweetUrl, formatBytes } from './utils.ts';
-import { downloadHlsWithFfmpeg } from './ffmpeg.ts';
+import { downloadHlsWithFfmpeg, downloadMp4WithFfmpeg } from './ffmpeg.ts';
 
 interface CliOptions {
   url?: string;
@@ -480,12 +480,44 @@ async function main(): Promise<void> {
       await downloadHlsWithFfmpeg({
         playlistUrl: result.videoUrl.url,
         outputPath,
+        clipFrom: args.clipFrom,
+        clipTo: args.clipTo,
       });
       console.log(`\n✅ Video saved to: ${outputPath}\n`);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       process.stdout.write('\r\x1b[K');
       console.error(`❌ HLS download failed: ${message}\n`);
+      process.exit(1);
+    }
+    return;
+  }
+
+  const isClipping = args.clipFrom || args.clipTo;
+
+  if (isClipping) {
+    const { ensureFfmpegReady: ensureFfmpegReadyForClip } = await import('./installer.ts');
+    const ffmpegReady = await ensureFfmpegReadyForClip();
+    if (!ffmpegReady) {
+      console.error('\n❌ ffmpeg is required to clip videos.');
+      console.error('Please install ffmpeg:');
+      console.error('  macOS:   brew install ffmpeg');
+      console.error('  Linux:   sudo apt-get install ffmpeg');
+      process.exit(1);
+    }
+
+    try {
+      await downloadMp4WithFfmpeg({
+        videoUrl: result.videoUrl.url,
+        outputPath,
+        clipFrom: args.clipFrom,
+        clipTo: args.clipTo,
+      });
+      console.log(`\n✅ Video saved to: ${outputPath}\n`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      process.stdout.write('\r\x1b[K');
+      console.error(`❌ Download failed: ${message}\n`);
       process.exit(1);
     }
     return;
