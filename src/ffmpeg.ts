@@ -295,14 +295,18 @@ export async function downloadMp4WithFfmpeg(options: DownloadMp4Options): Promis
   let lastProgressTime = Date.now();
   let rejected = false;
 
+  const fromSecs = clipFrom ? mmssToSeconds(clipFrom) : 0;
+  const toSecs = clipTo ? mmssToSeconds(clipTo) : undefined;
+  const duration = toSecs !== undefined ? toSecs - fromSecs : undefined;
+
   return new Promise((resolve, reject) => {
     const args = [
       '-y',
       '-hide_banner',
       '-loglevel', 'error',
-      ...(clipFrom ? ['-ss', clipFrom] : []),
+      ...(clipFrom ? ['-ss', String(fromSecs)] : []),
       '-i', videoUrl,
-      ...(clipTo ? ['-to', clipTo] : []),
+      ...(duration !== undefined ? ['-t', String(duration)] : []),
       '-c:v', 'libx264', '-c:a', 'aac', '-movflags', '+faststart',
       outputPath,
     ];
