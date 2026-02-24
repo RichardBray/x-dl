@@ -33,7 +33,7 @@ export async function downloadHlsWithFfmpeg(options: DownloadHlsOptions): Promis
   }
 
   const timeoutMs = timeout ?? 120000;
-  const noProgressTimeoutMs = 30000;
+  const noProgressTimeoutMs = 60000;
   let lastFileSize = 0;
   let lastProgressTime = Date.now();
   let rejected = false;
@@ -290,7 +290,7 @@ export async function downloadMp4WithFfmpeg(options: DownloadMp4Options): Promis
   }
 
   const timeoutMs = timeout ?? 120000;
-  const noProgressTimeoutMs = 30000;
+  const noProgressTimeoutMs = 60000;
   let lastFileSize = 0;
   let lastProgressTime = Date.now();
   let rejected = false;
