@@ -21,6 +21,8 @@ interface CliOptions {
   verifyAuth?: boolean;
   browserChannel?: 'chrome' | 'chromium' | 'msedge';
   browserExecutablePath?: string;
+  clipFrom?: string;
+  clipTo?: string;
 }
 
 interface InstallCliOptions {
@@ -122,6 +124,30 @@ function parseArgs(args: string[]): CliOptions {
           i++;
         }
         break;
+      case '--from':
+        if (!nextArg || nextArg.startsWith('-')) {
+          console.error('❌ Error: --from requires a time value (e.g., --from 00:00:30)');
+          process.exit(1);
+        }
+        if (!/^\d{2}:\d{2}:\d{2}$/.test(nextArg)) {
+          console.error(`❌ Error: --from must be in HH:MM:SS format (got: ${nextArg})`);
+          process.exit(1);
+        }
+        options.clipFrom = nextArg;
+        i++;
+        break;
+      case '--to':
+        if (!nextArg || nextArg.startsWith('-')) {
+          console.error('❌ Error: --to requires a time value (e.g., --to 00:01:30)');
+          process.exit(1);
+        }
+        if (!/^\d{2}:\d{2}:\d{2}$/.test(nextArg)) {
+          console.error(`❌ Error: --to must be in HH:MM:SS format (got: ${nextArg})`);
+          process.exit(1);
+        }
+        options.clipTo = nextArg;
+        i++;
+        break;
       case '--version':
       case '-v':
         showVersion();
@@ -168,6 +194,8 @@ OPTIONS:
   --browser-channel <channel>       Browser channel: chrome, chromium, or msedge (default: chromium)
   --browser-executable-path <path>  Path to browser executable (optional, overrides channel)
   --verify-auth                     Check authentication status (EXPERIMENTAL ALPHA)
+  --from <HH:MM:SS>                 Clip start time (e.g., 00:00:30)
+  --to <HH:MM:SS>                   Clip end time (e.g., 00:01:30)
   --version, -v                     Show version information
   --help, -h                        Show this help message
 
@@ -191,6 +219,13 @@ BROWSER EXAMPLES:
 
   # Use custom browser executable
   ${commandName} --browser-executable-path /path/to/browser https://x.com/user/status/123
+
+CLIP EXAMPLES:
+  # Download only 30s–90s of a video
+  ${commandName} --from 00:00:30 --to 00:01:30 https://x.com/user/status/123
+
+  # Download from 1 minute to end
+  ${commandName} --from 00:01:00 https://x.com/user/status/123
   `);
 }
 
