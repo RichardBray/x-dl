@@ -11,7 +11,8 @@ Extract videos from X (formerly Twitter) tweets.
 - ✅ Extract videos from public X/Twitter tweets
 - ✅ Supports multiple formats (mp4, webm, gif, etc.)
 - ✅ Automatic format selection (highest quality)
-- ✅ Download videos directly or just get of URL
+- ✅ Download videos directly or just get the URL
+- ✅ Clip videos to a specific time range (`--from` and `--to`)
 - ⚠️ Downloading videos from private tweets (experimental alpha features)
 - ❌ Windows support
 
@@ -59,6 +60,11 @@ x-dl https://x.com/user/status/123456
   - mp4/webm/gif files: direct download
   - HLS (m3u8) playlists: downloads via ffmpeg to produce mp4
   - If direct download fails with 401/403 auth errors and `--profile` is used, automatically retries using authenticated Playwright requests
+- **Clipping:**
+  - `--from` and `--to` (MM:SS format) trim videos to a specific time range
+  - HLS streams are clipped during download with ffmpeg re-encoding
+  - MP4 streams download full video, then clip locally
+  - Clipped files get a `_clip` suffix in the filename
 - **Auth:** with `--profile`, Playwright reuses cookies/session from a persistent profile directory
 - **ffmpeg:** checked at runtime and auto-installed when possible
 
@@ -158,6 +164,8 @@ x-dl install --with-deps
 | `--headed` | Show browser window for debugging |
 | `--profile [dir]` | Use a persistent browser profile for authenticated extraction (default: `~/.x-dl-profile`) |
 | `--login` | Open X in a persistent profile and wait for you to log in |
+| `--from <MM:SS>` | Clip start time in minutes and seconds (e.g. `00:30`) |
+| `--to <MM:SS>` | Clip end time in minutes and seconds (e.g. `01:30`) |
 | `--help, -h` | Show help message |
 
 **Note:** The `-o` option accepts any file extension. If you specify a path with an extension (e.g., `video.mp4`, `video.webm`), that format will be used. Otherwise, the format is auto-detected from the extracted video.
@@ -197,6 +205,17 @@ x-dl --profile ~/.x-dl-profile https://x.com/user/status/123456
 ```bash
 x-dl --timeout 60 https://x.com/user/status/123456
 ```
+
+**Clip a video to a specific time range:**
+```bash
+# Download only the 30s–90s portion of a video
+x-dl --from 00:30 --to 01:30 https://x.com/user/status/123456
+
+# Download from 1 minute to the end
+x-dl --from 01:00 https://x.com/user/status/123456
+```
+
+Clipped files are saved with a `_clip` suffix, e.g. `username_123456_clip.mp4`. Both `--from` and `--to` are optional — omitting `--from` starts from the beginning, omitting `--to` runs to the end.
 
 ## Output
 
@@ -239,7 +258,35 @@ When extracting a video, the tool will:
 ✅ Video saved to: ~/Downloads/Remotion_2013626968386765291.mp4
 ```
 
+### Example Output with Clipping
+
+```
+🎬 x-dl - X/Twitter Video Extractor
+
+🔍 Checking for Playwright (Chromium)...
+✅ Playwright Chromium is ready
+🔍 Checking for ffmpeg...
+✅ ffmpeg is ready
+
+🎬 Extracting video from: https://x.com/Remotion/status/2013626968386765291
+📝 Tweet: @Remotion (ID: 2013626968386765291)
+🌐 Opening tweet in browser...
+✅ Page loaded
+🔍 Looking for video...
+✅ Video extracted: https://video.twimg.com/ext_tw_video/...
+📋 Suggested filename: Remotion_2013626968386765291_clip.mp4
+📥 Downloading HLS video via ffmpeg...
+⠋ Downloading HLS...
+✅ HLS download completed
+
+✅ Video saved to: ~/Downloads/Remotion_2013626968386765291_clip.mp4
+```
+
 ## Limitations
+
+- **Public tweets only**: Private or protected tweets cannot be extracted
+- **Clipping requires ffmpeg**: `--from` and `--to` require ffmpeg for processing
+- **Clipping time format**: Times must be in MM:SS format (e.g., `00:30`, not `0:30` or `30`)
 
 - **Public tweets only**: Private or protected tweets cannot be extracted
 - **Time-limited URLs**: Video URLs may expire after some time

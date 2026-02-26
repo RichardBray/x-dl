@@ -7,7 +7,7 @@ import { VideoExtractor } from './extractor.ts';
 import { downloadVideo } from './downloader.ts';
 import { ensurePlaywrightReady, runInstall } from './installer.ts';
 import { generateFilename, isValidTwitterUrl, parseTweetUrl, formatBytes } from './utils.ts';
-import { downloadHlsWithFfmpeg } from './ffmpeg.ts';
+import { downloadHlsWithFfmpeg, clipLocalFile, mmssToSeconds } from './ffmpeg.ts';
 
 interface CliOptions {
   url?: string;
@@ -21,6 +21,8 @@ interface CliOptions {
   verifyAuth?: boolean;
   browserChannel?: 'chrome' | 'chromium' | 'msedge';
   browserExecutablePath?: string;
+  clipFrom?: string;
+  clipTo?: string;
 }
 
 interface InstallCliOptions {
@@ -122,6 +124,30 @@ function parseArgs(args: string[]): CliOptions {
           i++;
         }
         break;
+      case '--from':
+        if (!nextArg || nextArg.startsWith('-')) {
+          console.error('❌ Error: --from requires a time value (e.g., --from 00:30)');
+          process.exit(1);
+        }
+        if (!/^\d{2}:\d{2}$/.test(nextArg)) {
+          console.error(`❌ Error: --from must be in MM:SS format (got: ${nextArg})`);
+          process.exit(1);
+        }
+        options.clipFrom = nextArg;
+        i++;
+        break;
+      case '--to':
+        if (!nextArg || nextArg.startsWith('-')) {
+          console.error('❌ Error: --to requires a time value (e.g., --to 01:30)');
+          process.exit(1);
+        }
+        if (!/^\d{2}:\d{2}$/.test(nextArg)) {
+          console.error(`❌ Error: --to must be in MM:SS format (got: ${nextArg})`);
+          process.exit(1);
+        }
+        options.clipTo = nextArg;
+        i++;
+        break;
       case '--version':
       case '-v':
         showVersion();
@@ -168,6 +194,8 @@ OPTIONS:
   --browser-channel <channel>       Browser channel: chrome, chromium, or msedge (default: chromium)
   --browser-executable-path <path>  Path to browser executable (optional, overrides channel)
   --verify-auth                     Check authentication status (EXPERIMENTAL ALPHA)
+  --from <MM:SS>                    Clip start time (e.g., 00:30)
+  --to <MM:SS>                      Clip end time (e.g., 01:30)
   --version, -v                     Show version information
   --help, -h                        Show this help message
 
@@ -191,6 +219,13 @@ BROWSER EXAMPLES:
 
   # Use custom browser executable
   ${commandName} --browser-executable-path /path/to/browser https://x.com/user/status/123
+
+CLIP EXAMPLES:
+  # Download only 30s–90s of a video
+  ${commandName} --from 00:30 --to 01:30 https://x.com/user/status/123
+
+  # Download from 1 minute to end
+  ${commandName} --from 01:00 https://x.com/user/status/123
   `);
 }
 
@@ -225,7 +260,8 @@ EXAMPLES:
 }
 
 function showVersion(): void {
-  console.log('0.4.3');
+  const pkg = require('../package.json');
+  console.log(pkg.version);
   process.exit(0);
 }
 
@@ -425,7 +461,21 @@ async function main(): Promise<void> {
     defaultExtension = result.videoUrl.format;
   }
 
-  const outputPath = getOutputPath(args.url, args, defaultExtension);
+  const basePath = getOutputPath(args.url, args, defaultExtension);
+  const isClipping = args.clipFrom || args.clipTo;
+
+  if (args.clipFrom && args.clipTo) {
+    const fromSecs = mmssToSeconds(args.clipFrom);
+    const toSecs = mmssToSeconds(args.clipTo);
+    if (toSecs <= fromSecs) {
+      console.error('❌ Error: --to must be after --from');
+      process.exit(1);
+    }
+  }
+
+  const outputPath = isClipping
+    ? path.join(path.dirname(basePath), `${path.basename(basePath, path.extname(basePath))}_clip${path.extname(basePath)}`)
+    : basePath;
 
   if (result.videoUrl.format === 'm3u8') {
     const { ensureFfmpegReady } = await import('./installer.ts');
@@ -442,9 +492,15 @@ async function main(): Promise<void> {
     }
 
     try {
+      const fromSecs = args.clipFrom ? mmssToSeconds(args.clipFrom) : undefined;
+      const toSecs = args.clipTo ? mmssToSeconds(args.clipTo) : undefined;
+      const durationSecs = toSecs !== undefined ? toSecs - (fromSecs ?? 0) : undefined;
+
       await downloadHlsWithFfmpeg({
         playlistUrl: result.videoUrl.url,
         outputPath,
+        clipFromSecs: fromSecs,
+        clipDurationSecs: durationSecs,
       });
       console.log(`\n✅ Video saved to: ${outputPath}\n`);
     } catch (error) {
@@ -452,6 +508,55 @@ async function main(): Promise<void> {
       process.stdout.write('\r\x1b[K');
       console.error(`❌ HLS download failed: ${message}\n`);
       process.exit(1);
+    }
+    return;
+  }
+
+  if (isClipping) {
+    const { ensureFfmpegReady: ensureFfmpegReadyForClip } = await import('./installer.ts');
+    const ffmpegReady = await ensureFfmpegReadyForClip();
+    if (!ffmpegReady) {
+      console.error('\n❌ ffmpeg is required to clip videos.');
+      console.error('Please install ffmpeg:');
+      console.error('  macOS:   brew install ffmpeg');
+      console.error('  Linux:   sudo apt-get install ffmpeg');
+      process.exit(1);
+    }
+
+    // Download the full video first, then clip locally.
+    // ffmpeg can't access X/Twitter direct MP4 URLs (auth headers required).
+    const os = await import('node:os');
+    const fs = await import('node:fs');
+    const tmpPath = path.join(os.tmpdir(), `x-dl-tmp-${Date.now()}.mp4`);
+
+    try {
+      await downloadVideo({
+        url: result.videoUrl.url,
+        outputPath: tmpPath,
+        onProgress: (progress, downloaded, total) => {
+          process.stdout.write(
+            `\r⏳ Downloading: ${progress.toFixed(1)}% (${formatBytes(downloaded)}/${formatBytes(total)})`
+          );
+        },
+      });
+      process.stdout.write('\n');
+
+      await clipLocalFile({
+        inputPath: tmpPath,
+        outputPath,
+        clipFrom: args.clipFrom,
+        clipTo: args.clipTo,
+      });
+
+      console.log(`\n✅ Video saved to: ${outputPath}\n`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      process.stdout.write('\r\x1b[K');
+      console.error(`❌ Failed: ${message}\n`);
+      if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath);
+      process.exit(1);
+    } finally {
+      if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath);
     }
     return;
   }
