@@ -553,6 +553,7 @@ async function main(): Promise<void> {
       const message = error instanceof Error ? error.message : String(error);
       process.stdout.write('\r\x1b[K');
       console.error(`❌ Failed: ${message}\n`);
+      if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath);
       process.exit(1);
     } finally {
       if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath);
