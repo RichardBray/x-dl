@@ -16,9 +16,6 @@ interface CliOptions {
   quality?: 'best' | 'worst';
   timeout?: number;
   headed?: boolean;
-  profile?: string;
-  login?: boolean;
-  verifyAuth?: boolean;
   browserChannel?: 'chrome' | 'chromium' | 'msedge';
   browserExecutablePath?: string;
   clipFrom?: string;
@@ -28,18 +25,6 @@ interface CliOptions {
 interface InstallCliOptions {
   withDeps?: boolean;
   help?: boolean;
-}
-
-const DEFAULT_PROFILE_DIR = path.join(os.homedir(), '.x-dl-profile');
-
-function expandHomeDir(p: string): string {
-  if (p.startsWith('~/')) {
-    return path.join(os.homedir(), p.slice(2));
-  }
-  if (p === '~') {
-    return os.homedir();
-  }
-  return p;
 }
 
 function getDefaultDownloadsDir(): string {
@@ -96,21 +81,6 @@ function parseArgs(args: string[]): CliOptions {
         break;
       case '--headed':
         options.headed = true;
-        break;
-      case '--profile': {
-        if (!nextArg || nextArg.startsWith('-')) {
-          options.profile = DEFAULT_PROFILE_DIR;
-        } else {
-          options.profile = nextArg;
-          i++;
-        }
-        break;
-      }
-      case '--login':
-        options.login = true;
-        break;
-      case '--verify-auth':
-        options.verifyAuth = true;
         break;
       case '--browser-channel':
         if (nextArg === 'chrome' || nextArg === 'chromium' || nextArg === 'msedge') {
@@ -189,11 +159,8 @@ OPTIONS:
   --quality <best|worst>            Video quality preference (default: best)
   --timeout <seconds>               Page load timeout in seconds (default: 30)
   --headed                          Show browser window for debugging
-  --profile [dir]                   Persistent profile dir for authenticated extraction (default: ~/.x-dl-profile)
-  --login                           Open X in a persistent profile and wait for you to log in (EXPERIMENTAL ALPHA)
   --browser-channel <channel>       Browser channel: chrome, chromium, or msedge (default: chromium)
   --browser-executable-path <path>  Path to browser executable (optional, overrides channel)
-  --verify-auth                     Check authentication status (EXPERIMENTAL ALPHA)
   --from <MM:SS>                    Clip start time (e.g., 00:30)
   --to <MM:SS>                      Clip end time (e.g., 01:30)
   --version, -v                     Show version information
@@ -203,12 +170,18 @@ INSTALL:
   x-dl install               Install Playwright Chromium only
   x-dl install --with-deps   Install Chromium + ffmpeg + Linux deps (may require sudo on Linux)
 
-AUTH EXAMPLES:
-  # Create/reuse a persistent login session
-  ${commandName} --login --profile ~/.x-dl-profile
+CDP MODE (Private Tweets):
+  ${commandName} cdp <url>                    Connect to Chrome and download (port 9222)
+  ${commandName} cdp <url> --port 9333        Use custom debugging port
 
-  # Extract using the authenticated profile
-  ${commandName} --profile ~/.x-dl-profile https://x.com/user/status/123
+  Requires Chrome v144+ with remote debugging enabled.
+  See: https://developer.chrome.com/blog/chrome-devtools-mcp-debug-your-browser-session
+
+  1. Open Chrome -> chrome://inspect/#remote-debugging -> Enable
+  2. Run: ${commandName} cdp <url>
+
+  If Chrome is not running, x-dl will launch it automatically.
+  If not logged into X/Twitter, x-dl will open a login page automatically.
 
 BROWSER EXAMPLES:
   # Use Chrome instead of Chromium
@@ -290,45 +263,6 @@ function getOutputPath(tweetUrl: string, options: CliOptions, preferredExtension
   return `${options.output}/${filename}`;
 }
 
-async function waitForEnter(): Promise<void> {
-  process.stdin.resume();
-  return new Promise((resolve) => {
-    process.stdin.once('data', () => resolve());
-  });
-}
-
-async function runLoginFlow(
-  profileDir: string,
-  browserOptions?: { browserChannel?: string; browserExecutablePath?: string }
-): Promise<void> {
-  const { chromium } = await import('playwright');
-
-  console.log(`\n🔐 Login mode`);
-  console.log(`📁 Profile: ${profileDir}`);
-  console.log('🌐 Opening https://x.com/home ...');
-  console.log('\nLog in to X in the opened browser, then press Enter here to close.\n');
-
-  const launchOptions: any = {
-    headless: false,
-  };
-
-  if (browserOptions?.browserExecutablePath) {
-    launchOptions.executablePath = browserOptions.browserExecutablePath;
-  } else if (browserOptions?.browserChannel) {
-    launchOptions.channel = browserOptions.browserChannel;
-  }
-
-  const context = await chromium.launchPersistentContext(profileDir, launchOptions);
-
-  try {
-    const page = await context.newPage();
-    await page.goto('https://x.com/home', { waitUntil: 'domcontentloaded', timeout: 60000 });
-    await waitForEnter();
-  } finally {
-    await context.close();
-  }
-}
-
 async function handleInstallMode(args: string[]): Promise<void> {
   const options: InstallCliOptions = {};
 
@@ -373,9 +307,7 @@ async function main(): Promise<void> {
 
   const args = parseArgs(argv);
 
-  const needsDependencies = args.login || args.verifyAuth || args.url;
-
-  if (!needsDependencies) {
+  if (!args.url) {
     const commandName = getCommandName();
     console.error('❌ Error: No URL provided');
     console.error(`\nUsage: ${commandName} <url> [options]`);
@@ -397,47 +329,15 @@ async function main(): Promise<void> {
     console.warn('⚠️ ffmpeg is not available. HLS (m3u8) downloads will not work.');
   }
 
-  if (args.login) {
-    console.warn('[DEPRECATED] --login is an experimental alpha feature.');
-    const profileDir = expandHomeDir(args.profile || DEFAULT_PROFILE_DIR);
-    await runLoginFlow(profileDir, {
-      browserChannel: args.browserChannel,
-      browserExecutablePath: args.browserExecutablePath,
-    });
-    process.exit(0);
-  }
-
-  if (args.verifyAuth) {
-    console.warn('[DEPRECATED] verify-auth is an experimental alpha feature.');
-    const profileDir = expandHomeDir(args.profile || DEFAULT_PROFILE_DIR);
-    const extractor = new VideoExtractor({
-      profileDir,
-      browserChannel: args.browserChannel,
-      browserExecutablePath: args.browserExecutablePath,
-    });
-    const result = await extractor.verifyAuth();
-
-    console.log('\nAuth Status:');
-    console.log(`- Auth token present: ${result.hasAuthToken ? 'Yes' : 'No'}`);
-    console.log(`- Can access X.com/home: ${result.canAccessHome ? 'Yes' : 'No'}`);
-    console.log(`- Auth cookies found: ${result.authCookies.join(', ') || 'None'}`);
-    console.log(`\n${result.message}\n`);
-
-    process.exit(result.canAccessHome && result.hasAuthToken ? 0 : 1);
-  }
-
   if (!isValidTwitterUrl(args.url)) {
     console.error('❌ Error: Invalid X/Twitter URL');
     console.error('Please provide a valid tweet URL like: https://x.com/user/status/123456\n');
     process.exit(1);
   }
 
-  const profileDir = args.profile ? expandHomeDir(args.profile) : undefined;
-
   const extractor = new VideoExtractor({
     timeout: args.timeout,
     headed: args.headed,
-    profileDir,
     browserChannel: args.browserChannel,
     browserExecutablePath: args.browserExecutablePath,
   });
@@ -575,15 +475,6 @@ async function main(): Promise<void> {
     console.log(`\n\n✅ Video saved to: ${outputPath}\n`);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    const isAuthFailure = message.includes('status: 401') || message.includes('status: 403');
-
-    if (isAuthFailure && profileDir) {
-      console.log('\n\n🔐 Direct download was blocked; retrying with authenticated Playwright request...');
-      await extractor.downloadAuthenticated(result.videoUrl.url, outputPath);
-      console.log(`\n\n✅ Video saved to: ${outputPath}\n`);
-      process.exit(0);
-    }
-
     process.stdout.write('\r\x1b[K');
     console.error(`❌ Download failed: ${message}\n`);
     process.exit(1);
