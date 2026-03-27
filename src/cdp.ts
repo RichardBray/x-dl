@@ -41,28 +41,52 @@ export interface CdpConnection {
   cleanup: () => Promise<void>;
 }
 
+function isChromeRunning(): boolean {
+  try {
+    const result = Bun.spawnSync(['pgrep', '-f', 'Google Chrome'], {
+      stdout: 'pipe',
+      stderr: 'ignore',
+    });
+    return result.exitCode === 0;
+  } catch {
+    return false;
+  }
+}
+
+async function tryConnectPlaywright(
+  chromium: typeof import('playwright').chromium,
+  port: number,
+  timeoutMs: number = 5000,
+): Promise<Browser | null> {
+  try {
+    return await chromium.connectOverCDP(`http://localhost:${port}`, { timeout: timeoutMs });
+  } catch {
+    return null;
+  }
+}
+
 export async function connectOverCdp(port: number = 9222): Promise<CdpConnection> {
   const { chromium } = await import('playwright');
 
-  // Try connecting to an already-running Chrome
-  try {
-    const browser = await chromium.connectOverCDP(`http://localhost:${port}`);
-    const context = browser.contexts()[0] || await browser.newContext();
+  // Try connecting to Chrome launched with --remote-debugging-port
+  const existing = await tryConnectPlaywright(chromium, port);
+  if (existing) {
+    const context = existing.contexts()[0] || await existing.newContext();
     const page = await context.newPage();
 
     return {
-      browser,
+      browser: existing,
       context,
       page,
       launchedByUs: false,
       cleanup: async () => {
         await page.close().catch(() => {});
-        // Don't close browser — user's Chrome stays running
       },
     };
-  } catch {
-    // Connection failed — try launching Chrome ourselves
   }
+
+  // Check if Chrome is running without --remote-debugging-port
+  const chromeRunning = isChromeRunning();
 
   const chromePath = findChromePath();
   if (!chromePath) {
@@ -72,13 +96,23 @@ export async function connectOverCdp(port: number = 9222): Promise<CdpConnection
     );
   }
 
-  const profileDir = findChromeProfileDir();
-  const debuggingPort = port;
+  if (chromeRunning) {
+    // Chrome is running but not with remote debugging on this port.
+    // We can't reuse the profile (it's locked), so ask the user to restart Chrome.
+    throw new Error(
+      'Chrome is running but not with remote debugging enabled.\n\n' +
+      'Please close Chrome and let x-dl launch it, or restart Chrome with:\n' +
+      `  /Applications/Google\\ Chrome.app/Contents/MacOS/Google\\ Chrome --remote-debugging-port=${port}\n\n` +
+      'Then run: x-dl cdp <url>'
+    );
+  }
 
-  // Launch Chrome headlessly with the user's profile
+  // Chrome is not running — launch it headlessly with the user's profile
+  const profileDir = findChromeProfileDir();
+
   const chromeProcess = Bun.spawn([
     chromePath,
-    `--remote-debugging-port=${debuggingPort}`,
+    `--remote-debugging-port=${port}`,
     `--user-data-dir=${profileDir}`,
     '--headless=new',
     '--no-first-run',
@@ -91,23 +125,18 @@ export async function connectOverCdp(port: number = 9222): Promise<CdpConnection
   // Wait for Chrome to be ready
   let browser: Browser | null = null;
   for (let i = 0; i < 20; i++) {
-    try {
-      browser = await chromium.connectOverCDP(`http://localhost:${debuggingPort}`);
-      break;
-    } catch {
-      await new Promise(r => setTimeout(r, 500));
-    }
+    browser = await tryConnectPlaywright(chromium, port);
+    if (browser) break;
+    await new Promise(r => setTimeout(r, 500));
   }
 
   if (!browser) {
     chromeProcess.kill();
     throw new Error(
-      `Could not connect to Chrome on port ${port}.\n\n` +
-      'To use CDP mode, enable remote debugging in Chrome (v144+):\n' +
-      '  1. Open Chrome and go to chrome://inspect/#remote-debugging\n' +
-      '  2. Enable incoming debugging connections\n' +
-      '  3. Then run: x-dl cdp <url>\n\n' +
-      'Learn more: https://developer.chrome.com/blog/chrome-devtools-mcp-debug-your-browser-session'
+      `Could not launch Chrome with remote debugging on port ${port}.\n\n` +
+      'Try launching Chrome manually:\n' +
+      `  /Applications/Google\\ Chrome.app/Contents/MacOS/Google\\ Chrome --remote-debugging-port=${port}\n\n` +
+      'Then run: x-dl cdp <url>'
     );
   }
 
@@ -157,12 +186,9 @@ export async function handleCdpLogin(
     // Wait for Chrome to be ready
     let browser: Browser | null = null;
     for (let i = 0; i < 20; i++) {
-      try {
-        browser = await chromium.connectOverCDP(`http://localhost:${port}`);
-        break;
-      } catch {
-        await new Promise(r => setTimeout(r, 500));
-      }
+      browser = await tryConnectPlaywright(chromium, port);
+      if (browser) break;
+      await new Promise(r => setTimeout(r, 500));
     }
 
     if (!browser) {

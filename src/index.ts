@@ -384,7 +384,14 @@ async function handleCdpMode(argv: string[]): Promise<void> {
     process.exit(1);
   }
 
-  let connection = await connectOverCdp(port);
+  let connection;
+  try {
+    connection = await connectOverCdp(port);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`❌ ${message}\n`);
+    process.exit(1);
+  }
 
   try {
     const extractor = new VideoExtractor({
