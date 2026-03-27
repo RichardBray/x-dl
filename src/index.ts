@@ -8,7 +8,7 @@ import { downloadVideo } from './downloader.ts';
 import { ensurePlaywrightReady, runInstall } from './installer.ts';
 import { generateFilename, isValidTwitterUrl, parseTweetUrl, formatBytes, hasLoginWall } from './utils.ts';
 import { downloadHlsWithFfmpeg, clipLocalFile, mmssToSeconds } from './ffmpeg.ts';
-import { launchPrivateBrowser, handlePrivateLogin, findChromePath, getProfileDir } from './private.ts';
+import { launchPrivateBrowser, handlePrivateLogin, getProfileDir } from './private.ts';
 
 interface CliOptions {
   url?: string;
@@ -563,31 +563,42 @@ async function handleInstallMode(args: string[]): Promise<void> {
 }
 
 async function handleLoginMode(): Promise<void> {
-  const chromePath = findChromePath();
-  if (!chromePath) {
-    console.error('❌ Google Chrome not found.\n');
-    console.error('CDP mode requires Google Chrome installed on your system.');
+  const installed = await ensurePlaywrightReady();
+  if (!installed) {
+    console.error('\n❌ Playwright is required. Try: bunx playwright install chromium\n');
     process.exit(1);
   }
 
   const profileDir = getProfileDir();
   console.log('🔐 Opening Chrome for X/Twitter login...');
   console.log(`📁 Session will be saved to: ${profileDir}`);
-  console.log('⚠️  Log in, then close Chrome to finish.\n');
+  console.log('⚠️  Log in, and x-dl will detect it automatically.\n');
 
-  const chromeProcess = Bun.spawn([
-    chromePath,
-    `--user-data-dir=${profileDir}`,
-    '--no-first-run',
-    '--no-default-browser-check',
-    'https://x.com/i/flow/login',
-  ], {
-    stdout: 'ignore',
-    stderr: 'ignore',
+  const connection = await launchPrivateBrowser({ headed: true });
+
+  await connection.page.goto('https://x.com/i/flow/login', {
+    waitUntil: 'domcontentloaded',
+    timeout: 30000,
   });
 
-  await chromeProcess.exited;
-  console.log('✅ Chrome closed. You can now use: x-dl cdp <url>\n');
+  // Poll for auth_token cookie (5 min timeout)
+  const start = Date.now();
+  const timeoutMs = 300000;
+  while (Date.now() - start < timeoutMs) {
+    const cookies = await connection.context.cookies('https://x.com');
+    if (cookies.some(c => c.name === 'auth_token')) break;
+    await new Promise(r => setTimeout(r, 2000));
+  }
+
+  const cookies = await connection.context.cookies('https://x.com');
+  await connection.cleanup();
+
+  if (!cookies.some(c => c.name === 'auth_token')) {
+    console.error('❌ Login timed out (5 minutes). Please try again.\n');
+    process.exit(1);
+  }
+
+  console.log('✅ Login successful! You can now use: x-dl cdp <url>\n');
 }
 
 async function main(): Promise<void> {

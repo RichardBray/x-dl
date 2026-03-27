@@ -44,9 +44,16 @@ export async function launchPrivateBrowser(options?: {
   const context = await chromium.launchPersistentContext(DEFAULT_PROFILE_DIR, {
     channel: 'chrome',
     headless: !(options?.headed),
+    args: [
+      '--disable-blink-features=AutomationControlled',
+    ],
   });
 
+  // Remove navigator.webdriver flag to avoid detection
   const page = await context.newPage();
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'webdriver', { get: () => false });
+  });
 
   return {
     context,
@@ -61,47 +68,37 @@ export async function launchPrivateBrowser(options?: {
 export async function handlePrivateLogin(
   connection: PrivateConnection
 ): Promise<PrivateConnection> {
-  // Close Playwright so it releases the profile directory lock
+  // Close headless, relaunch headed for login
   await connection.cleanup();
 
-  const chromePath = findChromePath();
-  if (!chromePath) {
-    throw new Error(
-      'Google Chrome not found.\n' +
-      'CDP mode requires Google Chrome installed on your system.'
-    );
-  }
-
   console.log('🔐 Not logged into X/Twitter. Opening Chrome for login...');
-  console.log('⚠️  Log in to X/Twitter, then close Chrome to continue.\n');
+  console.log('⚠️  Log in, and x-dl will continue automatically.');
 
-  // Launch real Chrome (not Playwright-controlled) so Twitter doesn't detect automation
-  const chromeProcess = Bun.spawn([
-    chromePath,
-    `--user-data-dir=${DEFAULT_PROFILE_DIR}`,
-    '--no-first-run',
-    '--no-default-browser-check',
-    'https://x.com/i/flow/login',
-  ], {
-    stdout: 'ignore',
-    stderr: 'ignore',
+  const headed = await launchPrivateBrowser({ headed: true });
+
+  await headed.page.goto('https://x.com/i/flow/login', {
+    waitUntil: 'domcontentloaded',
+    timeout: 30000,
   });
 
-  // Wait for the user to close Chrome
-  await chromeProcess.exited;
-
-  console.log('✅ Chrome closed. Checking login status...');
-
-  // Relaunch via Playwright headless — cookies are persisted in the profile dir
-  const newConnection = await launchPrivateBrowser();
-
-  // Verify login succeeded by checking cookies
-  const cookies = await newConnection.context.cookies('https://x.com');
-  if (!cookies.some(c => c.name === 'auth_token')) {
-    await newConnection.cleanup();
-    throw new Error('Login not detected. Please try again.');
+  // Poll for auth_token cookie
+  const start = Date.now();
+  const timeoutMs = 300000; // 5 minutes
+  while (Date.now() - start < timeoutMs) {
+    const cookies = await headed.context.cookies('https://x.com');
+    if (cookies.some(c => c.name === 'auth_token')) break;
+    await new Promise(r => setTimeout(r, 2000));
   }
 
-  console.log('✅ Login detected! Continuing download...\n');
-  return newConnection;
+  const cookies = await headed.context.cookies('https://x.com');
+  if (!cookies.some(c => c.name === 'auth_token')) {
+    await headed.cleanup();
+    throw new Error('Login timed out (5 minutes). Please try again.');
+  }
+
+  console.log('✅ Login detected! Continuing download...');
+
+  // Close headed, relaunch headless — cookies are persisted in the profile dir
+  await headed.cleanup();
+  return launchPrivateBrowser();
 }
