@@ -6,8 +6,9 @@ import path from 'node:path';
 import { VideoExtractor } from './extractor.ts';
 import { downloadVideo } from './downloader.ts';
 import { ensurePlaywrightReady, runInstall } from './installer.ts';
-import { generateFilename, isValidTwitterUrl, parseTweetUrl, formatBytes } from './utils.ts';
+import { generateFilename, isValidTwitterUrl, parseTweetUrl, formatBytes, hasLoginWall } from './utils.ts';
 import { downloadHlsWithFfmpeg, clipLocalFile, mmssToSeconds } from './ffmpeg.ts';
+import { connectOverCdp, handleCdpLogin } from './cdp.ts';
 
 interface CliOptions {
   url?: string;
@@ -263,6 +264,279 @@ function getOutputPath(tweetUrl: string, options: CliOptions, preferredExtension
   return `${options.output}/${filename}`;
 }
 
+interface CdpCliOptions {
+  url?: string;
+  output?: string;
+  urlOnly?: boolean;
+  quality?: 'best' | 'worst';
+  timeout?: number;
+  port?: number;
+  clipFrom?: string;
+  clipTo?: string;
+}
+
+function parseCdpArgs(args: string[]): CdpCliOptions {
+  const options: CdpCliOptions = {};
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    const nextArg = args[i + 1];
+
+    switch (arg) {
+      case '--output':
+      case '-o':
+        options.output = nextArg;
+        i++;
+        break;
+      case '--url-only':
+        options.urlOnly = true;
+        break;
+      case '--quality':
+        if (nextArg === 'best' || nextArg === 'worst') {
+          options.quality = nextArg;
+          i++;
+        }
+        break;
+      case '--timeout':
+        if (!nextArg || nextArg.startsWith('-')) {
+          console.error('❌ Error: --timeout requires a numeric value');
+          process.exit(1);
+        }
+        const timeoutSeconds = parseInt(nextArg, 10);
+        if (isNaN(timeoutSeconds) || timeoutSeconds <= 0) {
+          console.error('❌ Error: --timeout must be a positive number');
+          process.exit(1);
+        }
+        options.timeout = timeoutSeconds * 1000;
+        i++;
+        break;
+      case '--port':
+        if (!nextArg || nextArg.startsWith('-')) {
+          console.error('❌ Error: --port requires a numeric value');
+          process.exit(1);
+        }
+        const port = parseInt(nextArg, 10);
+        if (isNaN(port) || port <= 0) {
+          console.error('❌ Error: --port must be a positive number');
+          process.exit(1);
+        }
+        options.port = port;
+        i++;
+        break;
+      case '--from':
+        if (!nextArg || nextArg.startsWith('-')) {
+          console.error('❌ Error: --from requires a time value (e.g., --from 00:30)');
+          process.exit(1);
+        }
+        if (!/^\d{2}:\d{2}$/.test(nextArg)) {
+          console.error(`❌ Error: --from must be in MM:SS format (got: ${nextArg})`);
+          process.exit(1);
+        }
+        options.clipFrom = nextArg;
+        i++;
+        break;
+      case '--to':
+        if (!nextArg || nextArg.startsWith('-')) {
+          console.error('❌ Error: --to requires a time value (e.g., --to 01:30)');
+          process.exit(1);
+        }
+        if (!/^\d{2}:\d{2}$/.test(nextArg)) {
+          console.error(`❌ Error: --to must be in MM:SS format (got: ${nextArg})`);
+          process.exit(1);
+        }
+        options.clipTo = nextArg;
+        i++;
+        break;
+      default:
+        if (!arg.startsWith('-') && !options.url) {
+          options.url = arg;
+        }
+        break;
+    }
+  }
+
+  return options;
+}
+
+async function handleCdpMode(argv: string[]): Promise<void> {
+  const args = parseCdpArgs(argv);
+  const commandName = getCommandName();
+  const port = args.port || 9222;
+
+  if (!args.url) {
+    console.error('❌ Error: No URL provided');
+    console.error(`\nUsage: ${commandName} cdp <url> [options]`);
+    console.error(`Run: ${commandName} --help for more information\n`);
+    process.exit(1);
+  }
+
+  if (!isValidTwitterUrl(args.url)) {
+    console.error('❌ Error: Invalid X/Twitter URL');
+    console.error('Please provide a valid tweet URL like: https://x.com/user/status/123456\n');
+    process.exit(1);
+  }
+
+  console.log('🎬 x-dl - X/Twitter Video Extractor (CDP mode)\n');
+
+  const installed = await ensurePlaywrightReady();
+  if (!installed) {
+    console.error('\n❌ Playwright is required. Try: bunx playwright install chromium\n');
+    process.exit(1);
+  }
+
+  let connection = await connectOverCdp(port);
+
+  try {
+    const extractor = new VideoExtractor({
+      timeout: args.timeout,
+    });
+
+    let result = await extractor.extract(args.url, connection.page);
+
+    // If login wall detected, trigger login flow and retry
+    if (!result.videoUrl && result.errorClassification === 'login_wall') {
+      connection = await handleCdpLogin(connection, port);
+      result = await extractor.extract(args.url, connection.page);
+    }
+
+    if (result.error || !result.videoUrl) {
+      console.error(`\n❌ ${result.error || 'Failed to extract video'}\n`);
+      process.exit(1);
+    }
+
+    if (args.urlOnly) {
+      console.log(`\n${result.videoUrl.url}\n`);
+      process.exit(0);
+    }
+
+    let defaultExtension = 'mp4';
+    if (result.videoUrl.format === 'm3u8') {
+      defaultExtension = 'mp4';
+    } else if (result.videoUrl.format !== 'unknown') {
+      defaultExtension = result.videoUrl.format;
+    }
+
+    const cliOpts: CliOptions = { output: args.output };
+    const basePath = getOutputPath(args.url, cliOpts, defaultExtension);
+    const isClipping = args.clipFrom || args.clipTo;
+
+    if (args.clipFrom && args.clipTo) {
+      const fromSecs = mmssToSeconds(args.clipFrom);
+      const toSecs = mmssToSeconds(args.clipTo);
+      if (toSecs <= fromSecs) {
+        console.error('❌ Error: --to must be after --from');
+        process.exit(1);
+      }
+    }
+
+    const outputPath = isClipping
+      ? path.join(path.dirname(basePath), `${path.basename(basePath, path.extname(basePath))}_clip${path.extname(basePath)}`)
+      : basePath;
+
+    if (result.videoUrl.format === 'm3u8') {
+      const { ensureFfmpegReady } = await import('./installer.ts');
+      const ffmpegReady = await ensureFfmpegReady();
+
+      if (!ffmpegReady) {
+        console.error('\n❌ ffmpeg is required to download HLS (m3u8) videos.');
+        console.error('Please install ffmpeg:');
+        console.error('  macOS:   brew install ffmpeg');
+        console.error('  Linux:   sudo apt-get install ffmpeg');
+        console.error(`\nPlaylist URL:\n${result.videoUrl.url}\n`);
+        process.exit(1);
+      }
+
+      try {
+        const fromSecs = args.clipFrom ? mmssToSeconds(args.clipFrom) : undefined;
+        const toSecs = args.clipTo ? mmssToSeconds(args.clipTo) : undefined;
+        const durationSecs = toSecs !== undefined ? toSecs - (fromSecs ?? 0) : undefined;
+
+        await downloadHlsWithFfmpeg({
+          playlistUrl: result.videoUrl.url,
+          outputPath,
+          clipFromSecs: fromSecs,
+          clipDurationSecs: durationSecs,
+        });
+        console.log(`\n✅ Video saved to: ${outputPath}\n`);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        process.stdout.write('\r\x1b[K');
+        console.error(`❌ HLS download failed: ${message}\n`);
+        process.exit(1);
+      }
+      return;
+    }
+
+    if (isClipping) {
+      const { ensureFfmpegReady: ensureFfmpegReadyForClip } = await import('./installer.ts');
+      const ffmpegReady = await ensureFfmpegReadyForClip();
+      if (!ffmpegReady) {
+        console.error('\n❌ ffmpeg is required to clip videos.');
+        console.error('Please install ffmpeg:');
+        console.error('  macOS:   brew install ffmpeg');
+        console.error('  Linux:   sudo apt-get install ffmpeg');
+        process.exit(1);
+      }
+
+      const osModule = await import('node:os');
+      const fsModule = await import('node:fs');
+      const tmpPath = path.join(osModule.tmpdir(), `x-dl-tmp-${Date.now()}.mp4`);
+
+      try {
+        await downloadVideo({
+          url: result.videoUrl.url,
+          outputPath: tmpPath,
+          onProgress: (progress, downloaded, total) => {
+            process.stdout.write(
+              `\r⏳ Downloading: ${progress.toFixed(1)}% (${formatBytes(downloaded)}/${formatBytes(total)})`
+            );
+          },
+        });
+        process.stdout.write('\n');
+
+        await clipLocalFile({
+          inputPath: tmpPath,
+          outputPath,
+          clipFrom: args.clipFrom,
+          clipTo: args.clipTo,
+        });
+
+        console.log(`\n✅ Video saved to: ${outputPath}\n`);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        process.stdout.write('\r\x1b[K');
+        console.error(`❌ Failed: ${message}\n`);
+        if (fsModule.existsSync(tmpPath)) fsModule.unlinkSync(tmpPath);
+        process.exit(1);
+      } finally {
+        if (fsModule.existsSync(tmpPath)) fsModule.unlinkSync(tmpPath);
+      }
+      return;
+    }
+
+    try {
+      await downloadVideo({
+        url: result.videoUrl.url,
+        outputPath,
+        onProgress: (progress, downloaded, total) => {
+          process.stdout.write(
+            `\r⏳ Progress: ${progress.toFixed(1)}% (${formatBytes(downloaded)}/${formatBytes(total)})`
+          );
+        },
+      });
+
+      console.log(`\n\n✅ Video saved to: ${outputPath}\n`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      process.stdout.write('\r\x1b[K');
+      console.error(`❌ Download failed: ${message}\n`);
+      process.exit(1);
+    }
+  } finally {
+    await connection.cleanup();
+  }
+}
+
 async function handleInstallMode(args: string[]): Promise<void> {
   const options: InstallCliOptions = {};
 
@@ -302,6 +576,11 @@ async function main(): Promise<void> {
 
   if (argv[0] === 'install') {
     await handleInstallMode(argv.slice(1));
+    return;
+  }
+
+  if (argv[0] === 'cdp') {
+    await handleCdpMode(argv.slice(1));
     return;
   }
 
