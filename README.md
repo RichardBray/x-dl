@@ -282,9 +282,17 @@ CDP mode uses Google Chrome with a dedicated profile to download private or logi
 ### Setup
 
 1. **Google Chrome** must be installed
-2. Run: `x-dl cdp <url>`
-3. First time: Chrome opens for you to log in to X/Twitter
-4. After login: x-dl downloads the video and saves your session for next time
+2. Log in first: `x-dl login`
+3. Download private tweets: `x-dl cdp <url>`
+
+### Login
+
+```bash
+# Open Chrome to log in to X/Twitter (session is saved for future use)
+x-dl login
+```
+
+Chrome opens with the X/Twitter login page. Log in normally — x-dl detects the login automatically and closes the browser.
 
 ### Examples
 
