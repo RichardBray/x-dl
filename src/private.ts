@@ -17,7 +17,7 @@ const CHROME_PATHS_LINUX = [
   '/snap/bin/chromium',
 ];
 
-function findChromePath(): string | null {
+export function findChromePath(): string | null {
   const platform = os.platform();
   const candidates = platform === 'darwin' ? CHROME_PATHS_MACOS : CHROME_PATHS_LINUX;
   for (const p of candidates) {

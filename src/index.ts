@@ -8,7 +8,7 @@ import { downloadVideo } from './downloader.ts';
 import { ensurePlaywrightReady, runInstall } from './installer.ts';
 import { generateFilename, isValidTwitterUrl, parseTweetUrl, formatBytes, hasLoginWall } from './utils.ts';
 import { downloadHlsWithFfmpeg, clipLocalFile, mmssToSeconds } from './ffmpeg.ts';
-import { launchPrivateBrowser, handlePrivateLogin } from './private.ts';
+import { launchPrivateBrowser, handlePrivateLogin, findChromePath, getProfileDir } from './private.ts';
 
 interface CliOptions {
   url?: string;
@@ -170,6 +170,10 @@ OPTIONS:
 INSTALL:
   x-dl install               Install Playwright Chromium only
   x-dl install --with-deps   Install Chromium + ffmpeg + Linux deps (may require sudo on Linux)
+
+LOGIN:
+  ${commandName} login                        Open Chrome to log in to X/Twitter
+                                              Session is saved to ~/.x-dl-chrome-profile
 
 CDP MODE (Private Tweets):
   ${commandName} cdp <url>                    Use Chrome to download private tweets
@@ -558,11 +562,44 @@ async function handleInstallMode(args: string[]): Promise<void> {
   }
 }
 
+async function handleLoginMode(): Promise<void> {
+  const chromePath = findChromePath();
+  if (!chromePath) {
+    console.error('❌ Google Chrome not found.\n');
+    console.error('CDP mode requires Google Chrome installed on your system.');
+    process.exit(1);
+  }
+
+  const profileDir = getProfileDir();
+  console.log('🔐 Opening Chrome for X/Twitter login...');
+  console.log(`📁 Session will be saved to: ${profileDir}`);
+  console.log('⚠️  Log in, then close Chrome to finish.\n');
+
+  const chromeProcess = Bun.spawn([
+    chromePath,
+    `--user-data-dir=${profileDir}`,
+    '--no-first-run',
+    '--no-default-browser-check',
+    'https://x.com/i/flow/login',
+  ], {
+    stdout: 'ignore',
+    stderr: 'ignore',
+  });
+
+  await chromeProcess.exited;
+  console.log('✅ Chrome closed. You can now use: x-dl cdp <url>\n');
+}
+
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);
 
   if (argv[0] === 'install') {
     await handleInstallMode(argv.slice(1));
+    return;
+  }
+
+  if (argv[0] === 'login') {
+    await handleLoginMode();
     return;
   }
 
