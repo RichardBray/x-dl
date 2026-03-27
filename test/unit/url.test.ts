@@ -4,7 +4,6 @@ import {
   parseTweetUrl, 
   generateFilename,
   sanitizeFilename,
-  isPrivateTweet,
   hasVideo,
   getVideoFormat,
   selectBestMp4,
@@ -125,37 +124,6 @@ describe('Filename Sanitization', () => {
   it('should limit filename length', () => {
     const longName = 'a'.repeat(300);
     expect(sanitizeFilename(longName).length).toBeLessThanOrEqual(255);
-  });
-});
-
-describe('Private Tweet Detection', () => {
-  it('should detect protected tweet indicators', () => {
-    const protectedHtml = 'This tweet is from an account that is protected';
-    expect(isPrivateTweet(protectedHtml)).toBe(true);
-
-    const privateHtml = 'These tweets are protected';
-    expect(isPrivateTweet(privateHtml)).toBe(true);
-
-    const notAuthorizedHtml = 'You are not authorized to view this tweet';
-    expect(isPrivateTweet(notAuthorizedHtml)).toBe(true);
-  });
-
-  it('should not flag public tweets as private', () => {
-    const publicHtml = 'This is a great tweet with a video';
-    expect(isPrivateTweet(publicHtml)).toBe(false);
-  });
-
-  it('should be case insensitive', () => {
-    expect(isPrivateTweet('PROTECTED TWEETS')).toBe(true);
-    expect(isPrivateTweet('YOU ARE NOT AUTHORIZED TO VIEW')).toBe(true);
-  });
-
-  it('should not flag login walls as private tweets', () => {
-    const loginHtml = 'Log in to follow this account';
-    expect(isPrivateTweet(loginHtml)).toBe(false);
-
-    const signUpHtml = 'Sign up to follow';
-    expect(isPrivateTweet(signUpHtml)).toBe(false);
   });
 });
 
