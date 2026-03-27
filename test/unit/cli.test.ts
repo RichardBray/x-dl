@@ -93,7 +93,7 @@ describe('CLI Commands', () => {
 
       expect(output).toContain('cdp');
       expect(output).toContain('CDP MODE');
-      expect(output).toContain('chrome://inspect');
+      expect(output).toContain('.x-dl-chrome-profile');
     });
 
     it('should error with no URL for cdp subcommand', async () => {

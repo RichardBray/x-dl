@@ -8,7 +8,7 @@ import { downloadVideo } from './downloader.ts';
 import { ensurePlaywrightReady, runInstall } from './installer.ts';
 import { generateFilename, isValidTwitterUrl, parseTweetUrl, formatBytes, hasLoginWall } from './utils.ts';
 import { downloadHlsWithFfmpeg, clipLocalFile, mmssToSeconds } from './ffmpeg.ts';
-import { connectOverCdp, handleCdpLogin } from './cdp.ts';
+import { launchPrivateBrowser, handlePrivateLogin } from './private.ts';
 
 interface CliOptions {
   url?: string;
@@ -172,17 +172,12 @@ INSTALL:
   x-dl install --with-deps   Install Chromium + ffmpeg + Linux deps (may require sudo on Linux)
 
 CDP MODE (Private Tweets):
-  ${commandName} cdp <url>                    Connect to Chrome and download (port 9222)
-  ${commandName} cdp <url> --port 9333        Use custom debugging port
+  ${commandName} cdp <url>                    Use Chrome to download private tweets
 
-  Requires Chrome v144+ with remote debugging enabled.
-  See: https://developer.chrome.com/blog/chrome-devtools-mcp-debug-your-browser-session
+  First run will open Chrome for you to log in to X/Twitter.
+  Subsequent runs reuse the saved session (~/.x-dl-chrome-profile).
 
-  1. Open Chrome -> chrome://inspect/#remote-debugging -> Enable
-  2. Run: ${commandName} cdp <url>
-
-  If Chrome is not running, x-dl will launch it automatically.
-  If not logged into X/Twitter, x-dl will open a login page automatically.
+  Requires Google Chrome installed on your system.
 
 BROWSER EXAMPLES:
   # Use Chrome instead of Chromium
@@ -270,7 +265,6 @@ interface CdpCliOptions {
   urlOnly?: boolean;
   quality?: 'best' | 'worst';
   timeout?: number;
-  port?: number;
   clipFrom?: string;
   clipTo?: string;
 }
@@ -308,19 +302,6 @@ function parseCdpArgs(args: string[]): CdpCliOptions {
           process.exit(1);
         }
         options.timeout = timeoutSeconds * 1000;
-        i++;
-        break;
-      case '--port':
-        if (!nextArg || nextArg.startsWith('-')) {
-          console.error('❌ Error: --port requires a numeric value');
-          process.exit(1);
-        }
-        const port = parseInt(nextArg, 10);
-        if (isNaN(port) || port <= 0) {
-          console.error('❌ Error: --port must be a positive number');
-          process.exit(1);
-        }
-        options.port = port;
         i++;
         break;
       case '--from':
@@ -361,7 +342,6 @@ function parseCdpArgs(args: string[]): CdpCliOptions {
 async function handleCdpMode(argv: string[]): Promise<void> {
   const args = parseCdpArgs(argv);
   const commandName = getCommandName();
-  const port = args.port || 9222;
 
   if (!args.url) {
     console.error('❌ Error: No URL provided');
@@ -376,7 +356,7 @@ async function handleCdpMode(argv: string[]): Promise<void> {
     process.exit(1);
   }
 
-  console.log('🎬 x-dl - X/Twitter Video Extractor (CDP mode)\n');
+  console.log('🎬 x-dl - X/Twitter Video Extractor (private mode)\n');
 
   const installed = await ensurePlaywrightReady();
   if (!installed) {
@@ -386,7 +366,7 @@ async function handleCdpMode(argv: string[]): Promise<void> {
 
   let connection;
   try {
-    connection = await connectOverCdp(port);
+    connection = await launchPrivateBrowser();
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error(`❌ ${message}\n`);
@@ -402,7 +382,7 @@ async function handleCdpMode(argv: string[]): Promise<void> {
 
     // If login wall detected, trigger login flow and retry
     if (!result.videoUrl && result.errorClassification === 'login_wall') {
-      connection = await handleCdpLogin(connection, port);
+      connection = await handlePrivateLogin(connection);
       result = await extractor.extract(args.url, connection.page);
     }
 
