@@ -80,6 +80,67 @@ describe('CLI Commands', () => {
     });
   });
 
+  describe('CDP subcommand', () => {
+    it('should show CDP info in help output', async () => {
+      const process = Bun.spawn(['bun', './bin/xld', '--help'], {
+        cwd: import.meta.dir + '/../../',
+        stdout: 'pipe',
+        stderr: 'pipe',
+      });
+
+      const output = await new Response(process.stdout).text();
+      await process.exited;
+
+      expect(output).toContain('cdp');
+      expect(output).toContain('CDP MODE');
+      expect(output).toContain('chrome://inspect');
+    });
+
+    it('should error with no URL for cdp subcommand', async () => {
+      const process = Bun.spawn(['bun', './bin/xld', 'cdp'], {
+        cwd: import.meta.dir + '/../../',
+        stdout: 'pipe',
+        stderr: 'pipe',
+      });
+
+      const stderr = await new Response(process.stderr).text();
+      const exitCode = await process.exited;
+
+      expect(exitCode).not.toBe(0);
+      expect(stderr).toContain('No URL provided');
+    });
+
+    it('should error with invalid URL for cdp subcommand', async () => {
+      const process = Bun.spawn(['bun', './bin/xld', 'cdp', 'https://example.com'], {
+        cwd: import.meta.dir + '/../../',
+        stdout: 'pipe',
+        stderr: 'pipe',
+      });
+
+      const stderr = await new Response(process.stderr).text();
+      const exitCode = await process.exited;
+
+      expect(exitCode).not.toBe(0);
+      expect(stderr).toContain('Invalid');
+    });
+
+    it('should not show deprecated auth flags in help', async () => {
+      const process = Bun.spawn(['bun', './bin/xld', '--help'], {
+        cwd: import.meta.dir + '/../../',
+        stdout: 'pipe',
+        stderr: 'pipe',
+      });
+
+      const output = await new Response(process.stdout).text();
+      await process.exited;
+
+      expect(output).not.toContain('--profile');
+      expect(output).not.toContain('--login');
+      expect(output).not.toContain('--verify-auth');
+      expect(output).not.toContain('EXPERIMENTAL ALPHA');
+    });
+  });
+
   describe('x-dl alias (original name)', () => {
     it('should spawn x-dl with --help and display usage information', async () => {
       const process = Bun.spawn(['bun', './bin/x-dl', '--help'], {
