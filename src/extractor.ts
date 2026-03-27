@@ -8,7 +8,6 @@ import {
   generateFilename,
   getVideoFormat,
   hasLoginWall,
-  isPrivateTweet,
   isValidTwitterUrl,
   parseTweetUrl,
 } from './utils.ts';
@@ -25,7 +24,6 @@ type ExtractCandidate = {
 export class VideoExtractor {
   private timeout: number;
   private headed: boolean;
-  private profileDir?: string;
   private debugArtifactsDir?: string;
   private browserChannel?: 'chrome' | 'chromium' | 'msedge';
   private browserExecutablePath?: string;
@@ -33,13 +31,12 @@ export class VideoExtractor {
   constructor(options: ExtractOptions) {
     this.timeout = options.timeout || 30000;
     this.headed = options.headed || false;
-    this.profileDir = options.profileDir;
     this.debugArtifactsDir = options.debugArtifactsDir;
     this.browserChannel = options.browserChannel;
     this.browserExecutablePath = options.browserExecutablePath;
   }
 
-  async extract(url: string): Promise<ExtractResult> {
+  async extract(url: string, externalPage?: Page): Promise<ExtractResult> {
     console.log(`\ud83c\udfac Extracting video from: ${url}`);
 
     if (!isValidTwitterUrl(url)) {
@@ -66,9 +63,14 @@ export class VideoExtractor {
     let browser: Browser | null = null;
     let context: BrowserContext | null = null;
     let page: Page | null = null;
+    const usingExternalPage = !!externalPage;
 
     try {
-      ({ browser, context, page } = await this.createContextAndPage(chromium));
+      if (usingExternalPage) {
+        page = externalPage;
+      } else {
+        ({ browser, context, page } = await this.createContextAndPage(chromium));
+      }
 
       const candidates = new Set<string>();
       page.on('response', async (resp) => {
@@ -85,20 +87,9 @@ export class VideoExtractor {
 
       const pageHtml = await page.content();
 
-      // WARNING: Private tweet detection is experimental (ALPHA)
-      if (isPrivateTweet(pageHtml)) {
-        const debugInfo = await this.saveDebugArtifacts(page, pageHtml, 'protected-account');
-        return {
-          videoUrl: null,
-          error: 'This tweet is private or protected. Only public tweets can be extracted.',
-          errorClassification: ErrorClassification.PROTECTED_ACCOUNT,
-          debugInfo,
-        };
-      }
-
       const loginWall = hasLoginWall(pageHtml);
       if (loginWall) {
-        console.log('\u26a0\ufe0f  Login wall detected; trying to extract anyway (use --login/--profile for best results)...');
+        console.log('\u26a0\ufe0f  Login wall detected; trying to extract anyway...');
       }
 
       // Try to trigger media loading.
@@ -117,7 +108,7 @@ export class VideoExtractor {
         return {
           videoUrl: null,
           error: loginWall
-            ? 'No video URL found. This tweet likely requires authentication. Run: x-dl --login --profile ~/.x-dl-profile'
+            ? 'No video URL found. This tweet likely requires authentication. Try: x-dl cdp <url>'
             : 'Failed to extract video URL.',
           errorClassification: loginWall ? ErrorClassification.LOGIN_WALL : ErrorClassification.NO_VIDEO_FOUND,
           debugInfo,
@@ -139,40 +130,8 @@ export class VideoExtractor {
         debugInfo,
       };
     } finally {
-      await this.safeClose({ browser, context });
-    }
-  }
-
-  async downloadAuthenticated(videoUrl: string, outputPath: string): Promise<string> {
-    if (!this.profileDir) {
-      throw new Error('Authenticated download requested but no profileDir provided');
-    }
-
-    const { chromium } = await import('playwright');
-
-    console.log(`\ud83d\udd10 Authenticated download via Playwright: ${videoUrl}`);
-    const startTime = Date.now();
-
-    let context: BrowserContext | null = null;
-
-    try {
-      context = await this.createPersistentContext(chromium, true);
-
-      const resp = await context.request.get(videoUrl);
-      if (!resp.ok()) {
-        throw new Error(`HTTP error! status: ${resp.status()}`);
-      }
-
-      const bytes = await resp.body();
-      await Bun.write(outputPath, bytes);
-
-      const elapsedSec = (Date.now() - startTime) / 1000;
-      console.log(`\u2705 Download completed in ${elapsedSec.toFixed(1)}s`);
-
-      return outputPath;
-    } finally {
-      if (context) {
-        await context.close().catch(() => undefined);
+      if (!usingExternalPage) {
+        await this.safeClose({ browser, context });
       }
     }
   }
@@ -180,22 +139,6 @@ export class VideoExtractor {
   private async createContextAndPage(
     chromium: typeof import('playwright').chromium
   ): Promise<{ browser: Browser | null; context: BrowserContext; page: Page }> {
-    if (this.profileDir) {
-      const launchOptions: any = {
-        headless: !this.headed,
-      };
-
-      if (this.browserExecutablePath) {
-        launchOptions.executablePath = this.browserExecutablePath;
-      } else if (this.browserChannel) {
-        launchOptions.channel = this.browserChannel;
-      }
-
-      const context = await chromium.launchPersistentContext(this.profileDir, launchOptions);
-      const page = await context.newPage();
-      return { browser: null, context, page };
-    }
-
     const launchOptions: any = { headless: !this.headed };
 
     if (this.browserExecutablePath) {
@@ -208,21 +151,6 @@ export class VideoExtractor {
     const context = await browser.newContext();
     const page = await context.newPage();
     return { browser, context, page };
-  }
-
-  private async createPersistentContext(
-    chromium: typeof import('playwright').chromium,
-    headless: boolean = true
-  ): Promise<BrowserContext> {
-    const launchOptions: any = { headless };
-
-    if (this.browserExecutablePath) {
-      launchOptions.executablePath = this.browserExecutablePath;
-    } else if (this.browserChannel) {
-      launchOptions.channel = this.browserChannel;
-    }
-
-    return await chromium.launchPersistentContext(this.profileDir!, launchOptions);
   }
 
   private async safeClose({
@@ -532,92 +460,4 @@ export class VideoExtractor {
     }
   }
 
-  /**
-   * @deprecated Authentication for private tweets is experimental (ALPHA).
-   * May not bypass login walls reliably. Use at your own risk.
-   */
-  async verifyAuth(): Promise<{
-    hasAuthToken: boolean;
-    canAccessHome: boolean;
-    authCookies: string[];
-    message: string;
-  }> {
-    console.warn('[DEPRECATED] verifyAuth is experimental and may not work reliably.');
-    if (!this.profileDir) {
-      return {
-        hasAuthToken: false,
-        canAccessHome: false,
-        authCookies: [],
-        message: 'No profile directory specified',
-      };
-    }
-
-    const { chromium } = await import('playwright');
-
-    let context: BrowserContext | null = null;
-    let page: Page | null = null;
-
-    try {
-      context = await this.createPersistentContext(chromium, true);
-
-      // Check for auth cookies
-      const cookies = await context.cookies();
-      const authTokenCookie = cookies.find(c => c.name === 'auth_token');
-      const authCookieNames = cookies
-        .filter(c => ['auth_token', 'auth_multi_select', 'personalization_id', 'ct0'].includes(c.name))
-        .map(c => c.name);
-
-      const hasAuthToken = !!authTokenCookie;
-
-      // Try to load X.com/home
-      page = await context.newPage();
-      let canAccessHome = false;
-      let message = '';
-
-      try {
-        await page.goto('https://x.com/home', {
-          waitUntil: 'domcontentloaded',
-          timeout: this.timeout,
-        });
-
-        const pageHtml = await page.content();
-        const loginWallDetected = hasLoginWall(pageHtml);
-
-        if (loginWallDetected) {
-          canAccessHome = false;
-          message = 'Login wall detected at X.com/home - authentication may be invalid or expired';
-        } else if (pageHtml.includes('Home') && hasAuthToken) {
-          canAccessHome = true;
-          message = 'Authentication is valid and X.com/home is accessible';
-        } else if (!loginWallDetected && pageHtml.includes('Home')) {
-          canAccessHome = true;
-          message = 'X.com/home loaded successfully (page loaded but no auth token present)';
-        } else if (!loginWallDetected) {
-          canAccessHome = true;
-          message = 'X.com/home loaded (no login wall detected, but auth token not present)';
-        } else {
-          canAccessHome = false;
-          message = 'Unable to verify access status';
-        }
-      } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : String(error);
-        canAccessHome = false;
-        message = `Failed to access X.com/home: ${errorMsg}`;
-      }
-
-      return {
-        hasAuthToken,
-        canAccessHome,
-        authCookies: authCookieNames,
-        message,
-      };
-    } finally {
-      if (page) {
-        await page.close().catch(() => undefined);
-      }
-      if (context) {
-        await context.close().catch(() => undefined);
-      }
-    }
-  }
 }
