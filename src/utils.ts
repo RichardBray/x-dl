@@ -78,26 +78,6 @@ export async function commandExists(command: string): Promise<boolean> {
   }
 }
 
-/**
- * @deprecated Private tweet detection is experimental (ALPHA).
- * May produce false positives/negatives. Use at your own risk.
- */
-export function isPrivateTweet(html: string): boolean {
-  const privateIndicators = [
-    'this tweet is from an account that is',
-    'protected tweets',
-    'you are not authorized to view',
-    'these tweets are protected',
-    'only followers can see',
-    'this tweet is protected',
-  ];
-
-  const lowerHtml = html.toLowerCase();
-  return privateIndicators.some(indicator =>
-    lowerHtml.includes(indicator.toLowerCase())
-  );
-}
-
 export function hasLoginWall(html: string): boolean {
   const loginIndicators = [
     'log in',
@@ -166,19 +146,3 @@ export function formatTime(seconds: number): string {
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
 
-export function hasCookie(cookies: any[], name: string): boolean {
-  return cookies.some(cookie => cookie.name === name);
-}
-
-export function findAuthCookies(cookies: any[]): string[] {
-  const authCookieNames = [
-    'auth_token',
-    'auth_multi_select',
-    'personalization_id',
-    'ct0',
-  ];
-
-  return cookies
-    .filter(cookie => authCookieNames.includes(cookie.name))
-    .map(cookie => cookie.name);
-}
