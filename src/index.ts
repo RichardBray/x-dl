@@ -377,6 +377,7 @@ async function handleCdpMode(argv: string[]): Promise<void> {
     process.exit(1);
   }
 
+  let exitCode = 0;
   try {
     const extractor = new VideoExtractor({
       timeout: args.timeout,
@@ -392,12 +393,13 @@ async function handleCdpMode(argv: string[]): Promise<void> {
 
     if (result.error || !result.videoUrl) {
       console.error(`\n❌ ${result.error || 'Failed to extract video'}\n`);
-      process.exit(1);
+      exitCode = 1;
+      return;
     }
 
     if (args.urlOnly) {
       console.log(`\n${result.videoUrl.url}\n`);
-      process.exit(0);
+      return;
     }
 
     let defaultExtension = 'mp4';
@@ -416,7 +418,8 @@ async function handleCdpMode(argv: string[]): Promise<void> {
       const toSecs = mmssToSeconds(args.clipTo);
       if (toSecs <= fromSecs) {
         console.error('❌ Error: --to must be after --from');
-        process.exit(1);
+        exitCode = 1;
+        return;
       }
     }
 
@@ -434,7 +437,8 @@ async function handleCdpMode(argv: string[]): Promise<void> {
         console.error('  macOS:   brew install ffmpeg');
         console.error('  Linux:   sudo apt-get install ffmpeg');
         console.error(`\nPlaylist URL:\n${result.videoUrl.url}\n`);
-        process.exit(1);
+        exitCode = 1;
+        return;
       }
 
       try {
@@ -453,7 +457,7 @@ async function handleCdpMode(argv: string[]): Promise<void> {
         const message = error instanceof Error ? error.message : String(error);
         process.stdout.write('\r\x1b[K');
         console.error(`❌ HLS download failed: ${message}\n`);
-        process.exit(1);
+        exitCode = 1;
       }
       return;
     }
@@ -466,7 +470,8 @@ async function handleCdpMode(argv: string[]): Promise<void> {
         console.error('Please install ffmpeg:');
         console.error('  macOS:   brew install ffmpeg');
         console.error('  Linux:   sudo apt-get install ffmpeg');
-        process.exit(1);
+        exitCode = 1;
+        return;
       }
 
       const osModule = await import('node:os');
@@ -498,7 +503,7 @@ async function handleCdpMode(argv: string[]): Promise<void> {
         process.stdout.write('\r\x1b[K');
         console.error(`❌ Failed: ${message}\n`);
         if (fsModule.existsSync(tmpPath)) fsModule.unlinkSync(tmpPath);
-        process.exit(1);
+        exitCode = 1;
       } finally {
         if (fsModule.existsSync(tmpPath)) fsModule.unlinkSync(tmpPath);
       }
@@ -521,10 +526,11 @@ async function handleCdpMode(argv: string[]): Promise<void> {
       const message = error instanceof Error ? error.message : String(error);
       process.stdout.write('\r\x1b[K');
       console.error(`❌ Download failed: ${message}\n`);
-      process.exit(1);
+      exitCode = 1;
     }
   } finally {
     await connection.cleanup();
+    if (exitCode !== 0) process.exit(exitCode);
   }
 }
 
@@ -576,29 +582,32 @@ async function handleLoginMode(): Promise<void> {
 
   const connection = await launchPrivateBrowser({ headed: true });
 
-  await connection.page.goto('https://x.com/i/flow/login', {
-    waitUntil: 'domcontentloaded',
-    timeout: 30000,
-  });
+  try {
+    await connection.page.goto('https://x.com/i/flow/login', {
+      waitUntil: 'domcontentloaded',
+      timeout: 30000,
+    });
 
-  // Poll for auth_token cookie (5 min timeout)
-  const start = Date.now();
-  const timeoutMs = 300000;
-  while (Date.now() - start < timeoutMs) {
+    // Poll for auth_token cookie (5 min timeout)
+    const start = Date.now();
+    const timeoutMs = 300000;
+    while (Date.now() - start < timeoutMs) {
+      const cookies = await connection.context.cookies('https://x.com');
+      if (cookies.some(c => c.name === 'auth_token')) break;
+      await new Promise(r => setTimeout(r, 2000));
+    }
+
     const cookies = await connection.context.cookies('https://x.com');
-    if (cookies.some(c => c.name === 'auth_token')) break;
-    await new Promise(r => setTimeout(r, 2000));
+
+    if (!cookies.some(c => c.name === 'auth_token')) {
+      console.error('❌ Login timed out (5 minutes). Please try again.\n');
+      process.exit(1);
+    }
+
+    console.log('✅ Login successful! You can now use: x-dl cdp <url>\n');
+  } finally {
+    await connection.cleanup();
   }
-
-  const cookies = await connection.context.cookies('https://x.com');
-  await connection.cleanup();
-
-  if (!cookies.some(c => c.name === 'auth_token')) {
-    console.error('❌ Login timed out (5 minutes). Please try again.\n');
-    process.exit(1);
-  }
-
-  console.log('✅ Login successful! You can now use: x-dl cdp <url>\n');
 }
 
 async function main(): Promise<void> {
