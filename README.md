@@ -13,7 +13,7 @@ Extract videos from X (formerly Twitter) tweets.
 - ✅ Automatic format selection (highest quality)
 - ✅ Download videos directly or just get the URL
 - ✅ Clip videos to a specific time range (`--from` and `--to`)
-- ⚠️ Downloading videos from private tweets (experimental alpha features)
+- ✅ Download videos from private tweets via CDP mode (connects to your Chrome)
 - ❌ Windows support
 
 ## Quick Install
@@ -59,13 +59,13 @@ x-dl https://x.com/user/status/123456
 - **Download:**
   - mp4/webm/gif files: direct download
   - HLS (m3u8) playlists: downloads via ffmpeg to produce mp4
-  - If direct download fails with 401/403 auth errors and `--profile` is used, automatically retries using authenticated Playwright requests
+  - In CDP mode, uses your Chrome's authenticated session for private tweets
 - **Clipping:**
   - `--from` and `--to` (MM:SS format) trim videos to a specific time range
   - HLS streams are clipped during download with ffmpeg re-encoding
   - MP4 streams download full video, then clip locally
   - Clipped files get a `_clip` suffix in the filename
-- **Auth:** with `--profile`, Playwright reuses cookies/session from a persistent profile directory
+- **Auth:** CDP mode connects to your real Chrome browser, reusing your logged-in session
 - **ffmpeg:** checked at runtime and auto-installed when possible
 
 Examples:
@@ -76,11 +76,8 @@ x-dl --url-only https://x.com/WesRoth/status/2013693268190437410
 ```
 
 ```bash
-# Log in once (interactive browser), saving cookies to a profile dir (alpha)
-x-dl --login --profile ~/.x-dl-profile
-
-# Then extract using the logged-in session
-x-dl --profile ~/.x-dl-profile --url-only https://x.com/WesRoth/status/2013693268190437410
+# Download a private tweet using CDP mode (connects to your Chrome)
+x-dl cdp https://x.com/user/status/123456
 ```
 
 ## Installation
@@ -162,8 +159,6 @@ x-dl install --with-deps
 | `--quality <best|worst>` | Video quality preference (default: best) |
 | `--timeout <seconds>` | Page load timeout in seconds (default: 30) |
 | `--headed` | Show browser window for debugging |
-| `--profile [dir]` | Use a persistent browser profile for authenticated extraction (default: `~/.x-dl-profile`) |
-| `--login` | Open X in a persistent profile and wait for you to log in |
 | `--from <MM:SS>` | Clip start time in minutes and seconds (e.g. `00:30`) |
 | `--to <MM:SS>` | Clip end time in minutes and seconds (e.g. `01:30`) |
 | `--help, -h` | Show help message |
@@ -192,14 +187,16 @@ x-dl --url-only https://x.com/user/status/123456
 x-dl --headed https://x.com/user/status/123456
 ```
 
-**Login once, then reuse the session (alpha):**
+**Download a private tweet via CDP mode:**
 ```bash
-# Log in interactively (creates/uses the profile dir)
-x-dl --login --profile ~/.x-dl-profile
+# Connects to your Chrome browser (must have remote debugging enabled)
+x-dl cdp https://x.com/user/status/123456
 
-# Extract using the logged-in session
-x-dl --profile ~/.x-dl-profile https://x.com/user/status/123456
+# Use a custom debugging port
+x-dl cdp --port 9333 https://x.com/user/status/123456
 ```
+
+See [CDP Mode](#cdp-mode-private-tweets) below for setup instructions.
 
 **Custom timeout:**
 ```bash
@@ -282,21 +279,49 @@ When extracting a video, the tool will:
 ✅ Video saved to: ~/Downloads/Remotion_2013626968386765291_clip.mp4
 ```
 
+## CDP Mode (Private Tweets)
+
+CDP mode connects to your real Chrome browser via the Chrome DevTools Protocol, using your logged-in session to download private or login-walled tweets.
+
+### Setup
+
+1. **Chrome v144+** is required
+2. Enable remote debugging in Chrome:
+   - Open Chrome and go to `chrome://inspect/#remote-debugging`
+   - Enable incoming debugging connections
+3. Run: `x-dl cdp <url>`
+
+### How It Works
+
+- If Chrome is already running with remote debugging, x-dl connects to it
+- If Chrome is not running, x-dl launches it headlessly with your profile
+- If you're not logged into X/Twitter, x-dl opens Chrome with a login page and waits for you to log in
+
+### Examples
+
+```bash
+# Download a private tweet
+x-dl cdp https://x.com/user/status/123456
+
+# Use a custom debugging port
+x-dl cdp --port 9333 https://x.com/user/status/123456
+
+# Just get the URL
+x-dl cdp --url-only https://x.com/user/status/123456
+
+# Clip a private tweet
+x-dl cdp --from 00:30 --to 01:30 https://x.com/user/status/123456
+```
+
+Learn more: https://developer.chrome.com/blog/chrome-devtools-mcp-debug-your-browser-session
+
 ## Limitations
 
-- **Public tweets only**: Private or protected tweets cannot be extracted
 - **Clipping requires ffmpeg**: `--from` and `--to` require ffmpeg for processing
 - **Clipping time format**: Times must be in MM:SS format (e.g., `00:30`, not `0:30` or `30`)
-
-- **Public tweets only**: Private or protected tweets cannot be extracted
 - **Time-limited URLs**: Video URLs may expire after some time
 - **Rate limiting**: X may rate-limit excessive requests
-- **Login walls**: Use `--login` and `--profile` to extract login-walled tweets (alpha)
-
-**How to tell if a tweet can be extracted:**
-1. Try opening the tweet in an incognito/private browser window
-2. If you see a "Sign up" or "Log in" prompt, this tool cannot extract it
-3. If the content loads without login, extraction should work
+- **CDP mode requires Chrome**: CDP mode needs Google Chrome installed (not Chromium)
 
 
 ## Testing
@@ -341,6 +366,7 @@ Use `--headed` mode to see the browser for debugging.
  │   ├── index.ts       # CLI entry point
  │   ├── extractor.ts   # Video extraction logic
  │   ├── downloader.ts  # Download logic (Bun fetch)
+ │   ├── cdp.ts         # Chrome DevTools Protocol connection
  │   ├── ffmpeg.ts      # HLS download via ffmpeg
  │   ├── installer.ts   # Dependency management (Playwright + ffmpeg)
  │   ├── types.ts       # TypeScript interfaces
@@ -390,19 +416,16 @@ bun run src/index.ts <url>
 
 The tool will verify ffmpeg capabilities automatically.
 
-### Authenticated extraction doesn't work
+### CDP mode can't connect to Chrome
 
-- Run `x-dl --login --profile ~/.x-dl-profile` and make sure you can view the tweet in that browser
-- Then rerun extraction with `--profile ~/.x-dl-profile`
-
-Security note: your profile directory contains authentication cookies.
+- Make sure Chrome v144+ is installed
+- Enable remote debugging: `chrome://inspect/#remote-debugging`
+- If Chrome is already running without remote debugging, restart it or use `--port` with a different port
+- Check that port 9222 (default) is not blocked by a firewall
 
 ### "This tweet is private or protected"
 
-Only public tweets can be extracted. Verify that:
-- The account is not private/protected
-- You're not trying to access sensitive content
-- The tweet is publicly accessible
+Use CDP mode to download private tweets: `x-dl cdp <url>`. This uses your Chrome's logged-in session.
 
 ### "No video found in this tweet"
 
