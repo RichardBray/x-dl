@@ -8,12 +8,7 @@ export interface VideoUrl {
 
 export enum ErrorClassification {
   LOGIN_WALL = 'login_wall',
-  /**
-   * @deprecated Private tweet extraction is experimental (ALPHA).
-   * May not work reliably. Use at your own risk.
-   */
-  PROTECTED_ACCOUNT = 'protected_account',
-  NO_VIDEO_FOUND = 'no_video_found',
+NO_VIDEO_FOUND = 'no_video_found',
   INVALID_URL = 'invalid_url',
   PARSE_ERROR = 'parse_error',
   EXTRACTION_ERROR = 'extraction_error',
@@ -40,7 +35,6 @@ export interface ExtractOptions {
   url?: string;
   timeout?: number;
   headed?: boolean;
-  profileDir?: string;
   browserChannel?: 'chrome' | 'chromium' | 'msedge';
   browserExecutablePath?: string;
   debugArtifactsDir?: string;
