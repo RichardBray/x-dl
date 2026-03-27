@@ -65,7 +65,7 @@ x-dl https://x.com/user/status/123456
   - HLS streams are clipped during download with ffmpeg re-encoding
   - MP4 streams download full video, then clip locally
   - Clipped files get a `_clip` suffix in the filename
-- **Auth:** CDP mode connects to your real Chrome browser, reusing your logged-in session
+- **Auth:** CDP mode uses a persistent Chrome profile, reusing your logged-in session
 - **ffmpeg:** checked at runtime and auto-installed when possible
 
 Examples:
@@ -189,11 +189,7 @@ x-dl --headed https://x.com/user/status/123456
 
 **Download a private tweet via CDP mode:**
 ```bash
-# Connects to your Chrome browser (must have remote debugging enabled)
 x-dl cdp https://x.com/user/status/123456
-
-# Use a custom debugging port
-x-dl cdp --port 9333 https://x.com/user/status/123456
 ```
 
 See [CDP Mode](#cdp-mode-private-tweets) below for setup instructions.
@@ -281,21 +277,14 @@ When extracting a video, the tool will:
 
 ## CDP Mode (Private Tweets)
 
-CDP mode connects to your real Chrome browser via the Chrome DevTools Protocol, using your logged-in session to download private or login-walled tweets.
+CDP mode uses Google Chrome with a dedicated profile to download private or login-walled tweets.
 
 ### Setup
 
-1. **Chrome v144+** is required
-2. Enable remote debugging in Chrome:
-   - Open Chrome and go to `chrome://inspect/#remote-debugging`
-   - Enable incoming debugging connections
-3. Run: `x-dl cdp <url>`
-
-### How It Works
-
-- If Chrome is already running with remote debugging, x-dl connects to it
-- If Chrome is not running, x-dl launches it headlessly with your profile
-- If you're not logged into X/Twitter, x-dl opens Chrome with a login page and waits for you to log in
+1. **Google Chrome** must be installed
+2. Run: `x-dl cdp <url>`
+3. First time: Chrome opens for you to log in to X/Twitter
+4. After login: x-dl downloads the video and saves your session for next time
 
 ### Examples
 
@@ -303,17 +292,11 @@ CDP mode connects to your real Chrome browser via the Chrome DevTools Protocol, 
 # Download a private tweet
 x-dl cdp https://x.com/user/status/123456
 
-# Use a custom debugging port
-x-dl cdp --port 9333 https://x.com/user/status/123456
-
 # Just get the URL
 x-dl cdp --url-only https://x.com/user/status/123456
-
-# Clip a private tweet
-x-dl cdp --from 00:30 --to 01:30 https://x.com/user/status/123456
 ```
 
-Learn more: https://developer.chrome.com/blog/chrome-devtools-mcp-debug-your-browser-session
+Session data is stored in `~/.x-dl-chrome-profile`. Delete this directory to log out.
 
 ## Limitations
 
@@ -366,7 +349,7 @@ Use `--headed` mode to see the browser for debugging.
  │   ├── index.ts       # CLI entry point
  │   ├── extractor.ts   # Video extraction logic
  │   ├── downloader.ts  # Download logic (Bun fetch)
- │   ├── cdp.ts         # Chrome DevTools Protocol connection
+ │   ├── private.ts     # Private tweet browser session (persistent Chrome profile)
  │   ├── ffmpeg.ts      # HLS download via ffmpeg
  │   ├── installer.ts   # Dependency management (Playwright + ffmpeg)
  │   ├── types.ts       # TypeScript interfaces
@@ -416,12 +399,11 @@ bun run src/index.ts <url>
 
 The tool will verify ffmpeg capabilities automatically.
 
-### CDP mode can't connect to Chrome
+### CDP mode doesn't work
 
-- Make sure Chrome v144+ is installed
-- Enable remote debugging: `chrome://inspect/#remote-debugging`
-- If Chrome is already running without remote debugging, restart it or use `--port` with a different port
-- Check that port 9222 (default) is not blocked by a firewall
+- Make sure Google Chrome is installed (not just Chromium)
+- Try deleting `~/.x-dl-chrome-profile` and logging in again
+- Use `--headed` if you need to debug: the browser window will stay visible
 
 ### "This tweet is private or protected"
 
