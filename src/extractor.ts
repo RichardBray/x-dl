@@ -36,7 +36,7 @@ export class VideoExtractor {
     this.browserExecutablePath = options.browserExecutablePath;
   }
 
-  async extract(url: string, externalPage?: Page): Promise<ExtractResult> {
+  async extract(url: string, authenticatedPage?: Page): Promise<ExtractResult> {
     console.log(`\ud83c\udfac Extracting video from: ${url}`);
 
     if (!isValidTwitterUrl(url)) {
@@ -63,11 +63,11 @@ export class VideoExtractor {
     let browser: Browser | null = null;
     let context: BrowserContext | null = null;
     let page: Page | null = null;
-    const usingExternalPage = !!externalPage;
+    const usingAuthenticatedPage = !!authenticatedPage;
 
     try {
-      if (usingExternalPage) {
-        page = externalPage;
+      if (usingAuthenticatedPage) {
+        page = authenticatedPage;
       } else {
         ({ browser, context, page } = await this.createContextAndPage(chromium));
       }
@@ -130,7 +130,7 @@ export class VideoExtractor {
         debugInfo,
       };
     } finally {
-      if (!usingExternalPage) {
+      if (!usingAuthenticatedPage) {
         await this.safeClose({ browser, context });
       }
     }
