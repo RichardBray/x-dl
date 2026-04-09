@@ -80,6 +80,15 @@ x-dl --url-only https://x.com/WesRoth/status/2013693268190437410
 x-dl cdp https://x.com/user/status/123456
 ```
 
+## Upgrading
+
+To upgrade to the latest version, remove the existing binary and re-run the installer:
+
+```bash
+rm ~/.local/bin/x-dl
+curl -fsSL https://github.com/RichardBray/x-dl/releases/latest/download/install.sh | bash
+```
+
 ## Installation
 
 **One-line installer (mecommended):**
