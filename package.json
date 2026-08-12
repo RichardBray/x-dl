@@ -33,7 +33,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "playwright": "^1.57.0"
+    "playwright": "^1.60.0"
   },
   "devDependencies": {}
 }
