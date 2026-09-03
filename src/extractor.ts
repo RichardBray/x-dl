@@ -11,12 +11,7 @@ import {
   isValidTwitterUrl,
   parseTweetUrl,
 } from './utils.ts';
-import { findChromePath } from './private.ts';
-
-// Looks like desktop Chrome, not headless. X blocks the HeadlessChrome UA string.
-// Version needs periodic updates to remain realistic (currently ~2 years old).
-const DESKTOP_CHROME_UA =
-  'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36';
+import { findChromePath, DESKTOP_CHROME_UA } from './private.ts';
 
 type ExtractCandidate = {
   url: string;

@@ -5,6 +5,10 @@ import type { BrowserContext, Page } from 'playwright';
 
 const DEFAULT_PROFILE_DIR = path.join(os.homedir(), '.x-dl-chrome-profile');
 
+// Headless Chrome's default UA includes "HeadlessChrome", which X blocks with a 403.
+export const DESKTOP_CHROME_UA =
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36';
+
 const CHROME_PATHS_MACOS = [
   '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
 ];
@@ -56,9 +60,12 @@ export async function launchPrivateBrowser(options?: {
 }): Promise<PrivateConnection> {
   const { chromium } = await import('playwright');
 
+  const headless = !(options?.headed);
+
   const context = await chromium.launchPersistentContext(DEFAULT_PROFILE_DIR, {
     channel: 'chrome',
-    headless: !(options?.headed),
+    headless,
+    userAgent: headless ? DESKTOP_CHROME_UA : undefined,
     args: [
       '--disable-blink-features=AutomationControlled',
     ],
