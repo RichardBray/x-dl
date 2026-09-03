@@ -12,6 +12,9 @@ import {
   parseTweetUrl,
 } from './utils.ts';
 
+const DESKTOP_CHROME_UA =
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36';
+
 type ExtractCandidate = {
   url: string;
   format: VideoUrl['format'];
@@ -145,10 +148,18 @@ export class VideoExtractor {
       launchOptions.executablePath = this.browserExecutablePath;
     } else if (this.browserChannel) {
       launchOptions.channel = this.browserChannel;
+    } else {
+      // X blocks Playwright's bundled Chromium outright (403 regardless of UA);
+      // prefer a real installed Chrome, which it doesn't fingerprint the same way.
+      const { findChromePath } = await import('./private.ts');
+      if (findChromePath()) {
+        launchOptions.channel = 'chrome';
+      }
     }
 
     const browser = await chromium.launch(launchOptions);
-    const context = await browser.newContext();
+    // Headless Chromium's default UA includes "HeadlessChrome", which X blocks with a 403.
+    const context = await browser.newContext({ userAgent: DESKTOP_CHROME_UA });
     const page = await context.newPage();
     return { browser, context, page };
   }
