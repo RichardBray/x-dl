@@ -11,9 +11,12 @@ import {
   isValidTwitterUrl,
   parseTweetUrl,
 } from './utils.ts';
+import { findChromePath } from './private.ts';
 
+// Looks like desktop Chrome, not headless. X blocks the HeadlessChrome UA string.
+// Version needs periodic updates to remain realistic (currently ~2 years old).
 const DESKTOP_CHROME_UA =
-  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36';
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36';
 
 type ExtractCandidate = {
   url: string;
@@ -40,7 +43,7 @@ export class VideoExtractor {
   }
 
   async extract(url: string, authenticatedPage?: Page): Promise<ExtractResult> {
-    console.log(`\ud83c\udfac Extracting video from: ${url}`);
+    console.log(`🎬 Extracting video from: ${url}`);
 
     if (!isValidTwitterUrl(url)) {
       return {
@@ -59,7 +62,7 @@ export class VideoExtractor {
       };
     }
 
-    console.log(`\ud83d\udcdd Tweet: @${tweetInfo.author} (ID: ${tweetInfo.id})`);
+    console.log(`📝 Tweet: @${tweetInfo.author} (ID: ${tweetInfo.id})`);
 
     const { chromium } = await import('playwright');
 
@@ -82,7 +85,7 @@ export class VideoExtractor {
         candidates.add(u);
       });
 
-      console.log('\ud83c\udf10 Opening tweet in browser...');
+      console.log('🌐 Opening tweet in browser...');
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout: this.timeout });
 
       // Give X a moment to hydrate
@@ -92,7 +95,7 @@ export class VideoExtractor {
 
       const loginWall = hasLoginWall(pageHtml);
       if (loginWall) {
-        console.log('\u26a0\ufe0f  Login wall detected; trying to extract anyway...');
+        console.log('⚠️  Login wall detected; trying to extract anyway...');
       }
 
       // Try to trigger media loading.
@@ -119,8 +122,8 @@ export class VideoExtractor {
       }
 
       const filename = generateFilename(tweetInfo);
-      console.log(`\u2705 Video extracted: ${videoUrl.url}`);
-      console.log(`\ud83d\udccb Suggested filename: ${filename}`);
+      console.log(`✅ Video extracted: ${videoUrl.url}`);
+      console.log(`📋 Suggested filename: ${filename}`);
 
       return { videoUrl };
     } catch (error) {
@@ -149,16 +152,14 @@ export class VideoExtractor {
     } else if (this.browserChannel) {
       launchOptions.channel = this.browserChannel;
     } else {
-      // X blocks Playwright's bundled Chromium outright (403 regardless of UA);
-      // prefer a real installed Chrome, which it doesn't fingerprint the same way.
-      const { findChromePath } = await import('./private.ts');
-      if (findChromePath()) {
-        launchOptions.channel = 'chrome';
+      const chromePath = findChromePath();
+      if (chromePath) {
+        // X fingerprints bundled Chromium itself; prefer a real Chrome installation.
+        launchOptions.executablePath = chromePath;
       }
     }
 
     const browser = await chromium.launch(launchOptions);
-    // Headless Chromium's default UA includes "HeadlessChrome", which X blocks with a 403.
     const context = await browser.newContext({ userAgent: DESKTOP_CHROME_UA });
     const page = await context.newPage();
     return { browser, context, page };
@@ -202,7 +203,7 @@ export class VideoExtractor {
         const htmlPath = path.join(this.debugArtifactsDir, `${prefix}.html`);
         fs.writeFileSync(htmlPath, pageHtml, 'utf-8');
         debugInfo.htmlPath = htmlPath;
-        console.log(`\ud83d\udcc3 HTML saved to: ${htmlPath}`);
+        console.log(`📄 HTML saved to: ${htmlPath}`);
       }
 
       // Save screenshot
@@ -210,7 +211,7 @@ export class VideoExtractor {
         const screenshotPath = path.join(this.debugArtifactsDir, `${prefix}.png`);
         await page.screenshot({ path: screenshotPath, fullPage: true });
         debugInfo.screenshotPath = screenshotPath;
-        console.log(`\ud83d\udcf7 Screenshot saved to: ${screenshotPath}`);
+        console.log(`📷 Screenshot saved to: ${screenshotPath}`);
       } catch {
         // Screenshot failed, continue without it
       }
@@ -218,7 +219,7 @@ export class VideoExtractor {
       return debugInfo;
     } catch (error) {
       console.warn(
-        `\u26a0\ufe0f  Failed to save debug artifacts: ${error instanceof Error ? error.message : 'Unknown error'}`
+        `⚠️  Failed to save debug artifacts: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
       return undefined;
     }
@@ -280,7 +281,7 @@ export class VideoExtractor {
     page: Page;
     networkCandidates: string[];
   }): Promise<VideoUrl | null> {
-    console.log('\ud83d\udd0d Looking for video...');
+    console.log('🔍 Looking for video...');
 
     const perfCandidates = await this.getPerformanceCandidates(page);
     const domCandidates = await this.getDomCandidates(page);

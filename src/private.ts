@@ -17,9 +17,24 @@ const CHROME_PATHS_LINUX = [
   '/snap/bin/chromium',
 ];
 
+const CHROME_PATHS_WINDOWS = [
+  path.join(os.homedir(), 'AppData/Local/Google/Chrome/Application/chrome.exe'),
+  'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+  'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+];
+
 export function findChromePath(): string | null {
   const platform = os.platform();
-  const candidates = platform === 'darwin' ? CHROME_PATHS_MACOS : CHROME_PATHS_LINUX;
+  let candidates: string[] = [];
+
+  if (platform === 'darwin') {
+    candidates = CHROME_PATHS_MACOS;
+  } else if (platform === 'linux') {
+    candidates = CHROME_PATHS_LINUX;
+  } else if (platform === 'win32') {
+    candidates = CHROME_PATHS_WINDOWS;
+  }
+
   for (const p of candidates) {
     if (fs.existsSync(p)) return p;
   }
