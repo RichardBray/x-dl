@@ -155,7 +155,7 @@ export class VideoExtractor {
     }
 
     const browser = await chromium.launch(launchOptions);
-    const context = await browser.newContext({ userAgent: DESKTOP_CHROME_UA });
+    const context = await browser.newContext({ userAgent: !this.headed ? DESKTOP_CHROME_UA : undefined });
     const page = await context.newPage();
     return { browser, context, page };
   }
