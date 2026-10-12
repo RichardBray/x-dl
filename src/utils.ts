@@ -1,4 +1,4 @@
-import { TweetInfo } from './types.ts';
+import { TweetInfo, VideoUrl } from './types.ts';
 
 export function isValidTwitterUrl(url: string): boolean {
   const patterns = [
@@ -146,3 +146,64 @@ export function formatTime(seconds: number): string {
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
 
+
+type VideoVariant = { url: string; bitrate?: number; content_type?: string };
+
+function videoVariantsFromMedia(media: unknown): VideoVariant[] | null {
+  if (!Array.isArray(media)) return null;
+  for (const m of media) {
+    if ((m?.type === 'video' || m?.type === 'animated_gif') && Array.isArray(m.video_info?.variants)) {
+      return m.video_info.variants;
+    }
+  }
+  return null;
+}
+
+// Thread pages also load the replies' videos, so the only reliable way to pick
+// the right one is to match the tweet ID in the API JSON (GraphQL or syndication).
+export function findTweetVideoVariants(json: unknown, tweetId: string): VideoVariant[] | null {
+  const stack: unknown[] = [json];
+  while (stack.length > 0) {
+    const node = stack.pop();
+    if (!node || typeof node !== 'object') continue;
+    if (Array.isArray(node)) {
+      stack.push(...node);
+      continue;
+    }
+
+    const obj = node as Record<string, any>;
+    if (obj.rest_id === tweetId && obj.legacy) {
+      return videoVariantsFromMedia(obj.legacy.extended_entities?.media);
+    }
+    if (obj.id_str === tweetId && Array.isArray(obj.mediaDetails)) {
+      return videoVariantsFromMedia(obj.mediaDetails);
+    }
+
+    stack.push(...Object.values(obj));
+  }
+  return null;
+}
+
+export function pickBestMp4Variant(variants: VideoVariant[]): VideoUrl | null {
+  const mp4s = variants
+    .filter((v) => v.content_type === 'video/mp4' && typeof v.url === 'string')
+    .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0));
+  if (mp4s.length > 0) {
+    const url = mp4s[0].url;
+    const match = url.match(/\/(\d+)x(\d+)\//);
+    return {
+      url,
+      format: 'mp4',
+      bitrate: mp4s[0].bitrate,
+      width: match ? parseInt(match[1], 10) : undefined,
+      height: match ? parseInt(match[2], 10) : undefined,
+    };
+  }
+
+  const hls = variants.find((v) => v.content_type === 'application/x-mpegURL' && typeof v.url === 'string');
+  return hls ? { url: hls.url, format: 'm3u8' } : null;
+}
+
+export function syndicationToken(tweetId: string): string {
+  return ((Number(tweetId) / 1e15) * Math.PI).toString(36).replace(/(0+|\.)/g, '');
+}

@@ -5,11 +5,14 @@ import path from 'node:path';
 import { ExtractOptions, ExtractResult, VideoUrl, ErrorClassification } from './types.ts';
 import {
   extractBitrate,
+  findTweetVideoVariants,
   generateFilename,
   getVideoFormat,
   hasLoginWall,
   isValidTwitterUrl,
   parseTweetUrl,
+  pickBestMp4Variant,
+  syndicationToken,
 } from './utils.ts';
 import { findChromePath, DESKTOP_CHROME_UA } from './private.ts';
 
@@ -74,8 +77,13 @@ export class VideoExtractor {
       }
 
       const candidates = new Set<string>();
+      const apiResponses: Promise<unknown>[] = [];
       page.on('response', async (resp) => {
         const u = resp.url();
+        if (/\/graphql\/[^/]+\/(TweetDetail|TweetResultByRestId)/.test(u)) {
+          apiResponses.push(resp.json().catch(() => null));
+          return;
+        }
         if (!u.includes('video.twimg.com')) return;
         candidates.add(u);
       });
@@ -99,10 +107,12 @@ export class VideoExtractor {
       // Wait a bounded time for video requests.
       await this.waitForNetworkCandidates(candidates, 8000);
 
-      const videoUrl = await this.selectBestVideoUrl({
-        page,
-        networkCandidates: [...candidates],
-      });
+      const videoUrl =
+        (await this.findTweetVideo(tweetInfo.id, apiResponses)) ??
+        (await this.selectBestVideoUrl({
+          page,
+          networkCandidates: [...candidates],
+        }));
 
       if (!videoUrl) {
         const debugInfo = await this.saveDebugArtifacts(page, pageHtml, loginWall ? 'login-wall' : 'no-video-found');
@@ -266,6 +276,29 @@ export class VideoExtractor {
         if (format === 'mp4' || format === 'm3u8' || format === 'webm' || format === 'gif') return;
       }
       await new Promise((r) => setTimeout(r, 250));
+    }
+  }
+
+  private async findTweetVideo(tweetId: string, apiResponses: Promise<unknown>[]): Promise<VideoUrl | null> {
+    for (const json of await Promise.all(apiResponses)) {
+      const variants = findTweetVideoVariants(json, tweetId);
+      if (variants) return pickBestMp4Variant(variants);
+    }
+
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 5000);
+    try {
+      const resp = await fetch(
+        `https://cdn.syndication.twimg.com/tweet-result?id=${tweetId}&token=${syndicationToken(tweetId)}`,
+        { signal: ctrl.signal }
+      );
+      if (!resp.ok) return null;
+      const variants = findTweetVideoVariants(await resp.json(), tweetId);
+      return variants ? pickBestMp4Variant(variants) : null;
+    } catch {
+      return null;
+    } finally {
+      clearTimeout(timer);
     }
   }
 
